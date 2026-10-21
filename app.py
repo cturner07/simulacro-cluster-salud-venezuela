@@ -418,7 +418,7 @@ def prepare() -> dict[str, pd.DataFrame]:
     results["area"] = results["indicador_codigo"].map(area_from_indicator)
     results = results.merge(rep[["id_reporte", "organizacion", "estado", "municipio", "lugar", "fecha_reporte", "foco"]], on="id_reporte", how="left", suffixes=("", "_rep"))
 
-    facility_services = t["facility_areas"].merge(fac[["id_establecimiento", "organizacion", "estado", "municipio", "lugar", "tipo_punto"]], on="id_establecimiento", how="left")
+    facility_services = t["facility_areas"].merge(fac[["id_establecimiento", "organizacion", "estado", "municipio", "lugar", "tipo_punto", "fecha_reporte"]], on="id_establecimiento", how="left")
     facility_services["servicio"] = facility_services["area_servicio"].map(clean_service)
     # Bloque 5.2 del F01 ("Seleccione el tipo o los tipos de apoyo que serán
     # proporcionados"): es una pregunta real distinta de 5.1 (áreas/servicios
@@ -426,9 +426,22 @@ def prepare() -> dict[str, pd.DataFrame]:
     # el tablero.
     facility_supports = t["supports"].merge(fac[["id_establecimiento", "organizacion", "estado", "municipio", "lugar", "tipo_punto"]], on="id_establecimiento", how="left")
     facility_supports["tipo_apoyo"] = facility_supports["tipo_apoyo"].map(clean_service)
-    offered = t["offered"].merge(t["places"][["id_servicio", "organizacion", "estado", "municipio", "nombre_sitio"]], on="id_servicio", how="left")
+    offered = t["offered"].merge(t["places"][["id_servicio", "organizacion", "estado", "municipio", "nombre_sitio", "desde", "hasta"]], on="id_servicio", how="left")
     offered["servicio"] = offered["servicio"].map(clean_service)
     offered["lugar"] = offered["nombre_sitio"]
+    # Un registro por servicio/acción y lugar: es oferta declarada, no
+    # cantidad de personas atendidas ni resultados periódicos del F02.
+    facility_coverage = facility_services[["id_establecimiento", "organizacion", "estado", "municipio", "servicio", "fecha_reporte"]].copy()
+    facility_coverage = facility_coverage.rename(columns={"id_establecimiento": "id_punto", "servicio": "tipo_accion"})
+    facility_coverage["id_punto"] = "FAC-" + facility_coverage["id_punto"].astype(str)
+    facility_coverage["foco"] = "Establecimiento de salud"
+    public_coverage = offered[["organizacion", "estado", "municipio", "nombre_sitio", "servicio", "desde", "hasta"]].copy()
+    public_coverage["id_punto"] = public_coverage["organizacion"].astype(str) + " | " + public_coverage["nombre_sitio"].astype(str)
+    public_coverage = public_coverage.rename(columns={"servicio": "tipo_accion"})
+    public_coverage["foco"] = "Salud pública"
+    coverage_actions = pd.concat([facility_coverage, public_coverage], ignore_index=True)
+    coverage_actions = coverage_actions.dropna(subset=["tipo_accion", "id_punto"])
+    coverage_actions = coverage_actions[coverage_actions.tipo_accion.astype(str).str.strip().ne("")]
 
     donor_base = t["places"].copy()
     if "donantes" not in donor_base.columns:
@@ -499,7 +512,7 @@ def prepare() -> dict[str, pd.DataFrame]:
                 })
     sample = pd.DataFrame(calendar_rows, columns=["id_punto","organizacion","estado","municipio","parroquia","lugar","actividad","jornada","fecha","foco"])
     return {**t, "reports_prepared": rep, "points": points, "public_points": public_points, "results_joined": results,
-            "facility_services_joined": facility_services, "facility_supports_joined": facility_supports, "offered_joined": offered, "donor_sources": donor_sources,
+            "facility_services_joined": facility_services, "facility_supports_joined": facility_supports, "offered_joined": offered, "coverage_actions": coverage_actions, "donor_sources": donor_sources,
             "calendar": sample}
 
 
@@ -884,7 +897,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     f01_report_dates=pd.concat([pd.to_datetime(d["facilities"].fecha_reporte,errors="coerce"),pd.to_datetime(d["reports_prepared"].fecha_reporte,errors="coerce")]).dropna()
     first_f01=f01_report_dates.min().strftime("%d/%m/%Y"); last_f01=f01_report_dates.max().strftime("%d/%m/%Y")
     section_band("SOCIOS Y APOYOS DEL CLÚSTER SALUD", "¿Quiénes son los socios, qué ofrecen, a qué establecimientos de salud apoyan y qué acciones de salud pública realizan?")
-    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#mapa-f01">01 · Mapa</a><a href="#socios-f01">02 · Socios</a><a href="#territorio-f01">03 · Alcance territorial</a><a href="#apoyos-establecimientos-f01">04 · Apoyo a establecimientos de salud</a><a href="#acciones-publicas-f01">05 · Acciones de salud pública</a><a href="#capacidad-f01">06 · Capacidad operativa</a><a href="#inversion-f01">07 · Inversión</a></div>',unsafe_allow_html=True)
+    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#panorama-f01">01 · Panorama</a><a href="#mapa-f01">02 · Mapa</a><a href="#territorio-f01">03 · Alcance territorial</a><a href="#socios-f01">04 · Socios</a><a href="#apoyos-establecimientos-f01">05 · Apoyo a establecimientos de salud</a><a href="#acciones-publicas-f01">06 · Acciones de salud pública</a><a href="#capacidad-f01">07 · Capacidad operativa</a><a href="#inversion-f01">08 · Inversión</a></div>',unsafe_allow_html=True)
     professional_total=pd.to_numeric(staffing[all_staff_cols].stack(),errors="coerce").sum()
     parish_count=p.loc[p.parroquia.ne("No reportada"),"parroquia"].nunique()
     cards=[
@@ -896,10 +909,34 @@ if module == RADIO_MODULE_OPTIONS[0]:
         ("Total profesionales reportados",num(professional_total),""),
         ("Inversión registrada",f'{num(p.inversion_usd.sum())}<br><span style="font-size:.5em;color:{MUTED};">USD</span>',""),
     ]
-    st.markdown('<h3>Panorama general de la oferta vigente</h3>',unsafe_allow_html=True)
+    st.markdown('<div id="panorama-f01" class="section-kicker">01 · Panorama general</div><h3>Oferta registrada</h3>',unsafe_allow_html=True)
     st.markdown('<div class="metric-row" style="grid-template-columns:repeat(7,1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
-    st.markdown('<div id="mapa-f01" class="section-kicker">01 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="mapa-f01" class="section-kicker">02 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
+    coverage=filt(d["coverage_actions"],True)
+    public_rows=coverage.foco.eq("Salud pública")
+    active_public=coverage.desde.isna() | coverage.desde.le(window_end)
+    active_public &= coverage.hasta.isna() | coverage.hasta.ge(window_start)
+    coverage=coverage[~public_rows | active_public].copy()
+    facility_actions=sorted(coverage.loc[coverage.foco.eq("Establecimiento de salud"),"tipo_accion"].dropna().unique())
+    public_actions=sorted(coverage.loc[coverage.foco.eq("Salud pública"),"tipo_accion"].dropna().unique())
+    filter_facility,filter_public=st.columns(2)
+    with filter_facility:
+        facility_choice=st.selectbox("Servicios ofertados · establecimientos de salud",["Todos los servicios"]+facility_actions,key="map_facility_service_f01")
+    with filter_public:
+        public_choice=st.selectbox("Acciones ofertadas · salud pública",["Todas las acciones"]+public_actions,key="map_public_action_f01")
+    selected_coverage=coverage[
+        (coverage.foco.eq("Establecimiento de salud") &
+         (coverage.tipo_accion.eq(facility_choice) if facility_choice!="Todos los servicios" else True)) |
+        (coverage.foco.eq("Salud pública") &
+         (coverage.tipo_accion.eq(public_choice) if public_choice!="Todas las acciones" else True))
+    ].copy()
     mapped=p.dropna(subset=["latitud","longitud"])
+    if facility_choice!="Todos los servicios":
+        facility_ids=set(selected_coverage.loc[selected_coverage.foco.eq("Establecimiento de salud"),"id_punto"])
+        mapped=mapped[~mapped.foco.eq("Establecimiento de salud") | mapped.id_punto.isin(facility_ids)]
+    if public_choice!="Todas las acciones":
+        public_ids=set(selected_coverage.loc[selected_coverage.foco.eq("Salud pública"),"id_punto"])
+        mapped=mapped[~mapped.foco.eq("Salud pública") | mapped.id_punto.isin(public_ids)]
     if mapped.empty: st.info("No hay coordenadas para estos filtros.")
     else:
         mapped=mapped.copy(); mapped["foco_formulario"]=mapped.foco.map({"Establecimiento de salud":"Acciones en el establecimiento de salud","Salud pública":"Acciones de salud pública"})
@@ -934,7 +971,60 @@ if module == RADIO_MODULE_OPTIONS[0]:
         section_figures.setdefault("Resumen territorial", []).append(fig)
         st.caption("El color distingue el foco y el tamaño del punto representa la inversión registrada en USD. En este simulacro, los montos son ilustrativos. El zoom con la rueda del mouse está desactivado para evitar cambios accidentales al hacer scroll de la página; use los botones +/- del mapa.")
 
-    st.markdown(f'<div id="socios-f01" class="section-kicker">02 · Socios</div><h2>Organizaciones y su alcance · {num(p.organizacion.nunique())} socios · {num(p.id_punto.nunique())} puntos</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="territorio-f01" class="section-kicker">03 · Alcance territorial</div><h2>Presencia territorial</h2>',unsafe_allow_html=True)
+    if selected_coverage.empty:
+        st.info("No hay tipos de acción registrados para los filtros seleccionados.")
+    else:
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Los filtros situados sobre el mapa también se aplican aquí.")
+        territory_view=st.radio("Nivel territorial",["Estado","Municipio"],horizontal=True,key="territory_view_f01")
+        territorial=selected_coverage.copy()
+        territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
+        territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
+        for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
+            subset=territorial[territorial.foco.eq(focus_name)]
+            st.markdown(f"### {heading}")
+            if subset.empty:
+                st.info("No hay registros de este foco con los filtros seleccionados.")
+                continue
+            stacked=subset.groupby(["territorio","tipo_accion"],as_index=False).agg(puntos=("id_punto","nunique"))
+            order=stacked.groupby("territorio").puntos.sum().sort_values(ascending=False).index.tolist()
+            fig=px.bar(stacked,x="puntos",y="territorio",color="tipo_accion",orientation="h",barmode="stack",
+                       color_discrete_sequence=PALETTE_EXT,category_orders={"territorio":order},
+                       labels={"puntos":"Puntos con el servicio o acción","territorio":"","tipo_accion":"Servicio o acción"})
+            fig.update_layout(legend=dict(orientation="h",yanchor="top",y=-.22,x=0),bargap=.3)
+            plot(fig,max(390,45*len(order)+150),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
+                 margin=dict(l=8,r=28,t=18,b=100))
+            section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
+        st.caption("Las barras están apiladas por tipo de acción. Un punto con varias acciones aparece en varios segmentos; el largo total de la barra no equivale a puntos únicos.")
+
+        st.markdown("### Servicios y acciones más ofertados")
+        ranking_cols=st.columns(2)
+        for col,focus_name,heading,color in [(ranking_cols[0],"Establecimiento de salud","Establecimientos de salud",RED),
+                                              (ranking_cols[1],"Salud pública","Salud pública",YELLOW)]:
+            subset=territorial[territorial.foco.eq(focus_name)]
+            with col:
+                st.markdown(f"#### {heading}")
+                if subset.empty:
+                    st.info("Sin registros con los filtros seleccionados.")
+                    continue
+                ranking=subset.groupby("tipo_accion",as_index=False).agg(puntos=("id_punto","nunique")).sort_values("puntos",ascending=False)
+                fig=px.bar(ranking,x="puntos",y="tipo_accion",orientation="h",text="puntos",
+                           category_orders={"tipo_accion":ranking.tipo_accion.tolist()},color_discrete_sequence=[color],
+                           labels={"puntos":"Puntos que lo ofertan","tipo_accion":""})
+                fig.update_traces(textposition="outside")
+                plot(fig,max(320,45*len(ranking)+95),f"ranking_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01")
+                section_figures.setdefault("Servicios y acciones más ofertados",[]).append(fig)
+
+        detail=territorial.groupby(["territorio","foco","tipo_accion"]).agg(
+            puntos=("id_punto","nunique"),
+            organizaciones=("organizacion",lambda s:", ".join(sorted(set(s))))
+        ).reset_index().sort_values(["territorio","tipo_accion"])
+        detail.columns=["Territorio","Foco","Tipo de acción","Puntos","Organizaciones que la cubren"]
+        st.markdown("#### ¿Quién cubre cada acción?")
+        st.dataframe(detail,hide_index=True,width="stretch",height=min(650,72+35*len(detail)))
+        st.caption("La tabla identifica las acciones y organizaciones. Un punto puede tener varias acciones, por lo que sus filas no deben sumarse como puntos únicos.")
+
+    st.markdown(f'<div id="socios-f01" class="section-kicker">04 · Socios</div><h2>Organizaciones y su alcance · {num(p.organizacion.nunique())} socios · {num(p.id_punto.nunique())} puntos</h2>',unsafe_allow_html=True)
     st.markdown("### Principales socios por cantidad de puntos")
     # Barras horizontales apiladas por foco (rojo/amarillo, igual que el
     # mapa): reemplaza el treemap anterior — con esto solo ya se ve tanto el
@@ -1031,53 +1121,12 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 section_figures.setdefault("Presencia de socios", []).append(fig)
     st.caption("La visualización cuenta puntos en los que una organización declaró una fuente de apoyo. No representa montos ni atribuye financiamiento a un servicio específico.")
 
-    st.markdown('<div id="territorio-f01" class="section-kicker">03 · Alcance territorial</div><h2>Presencia territorial de socios</h2>',unsafe_allow_html=True)
-    territory=active_places.copy(); territory["parroquia"]=territory.parroquia.fillna("No reportada")
-    top_states=territory.groupby("estado").organizacion.nunique().nlargest(8).sort_values().reset_index(name="socios")
-    top_munis=territory.groupby(["estado","municipio"]).organizacion.nunique().nlargest(10).sort_values().reset_index(name="socios"); top_munis["territorio"]=top_munis.municipio+" ("+top_munis.estado+")"
-    # Un solo gráfico con selector (antes eran dos gráficos fijos lado a
-    # lado): el usuario elige el nivel territorial y la misma gráfica se
-    # redibuja; municipio tiene más categorías, así que la altura crece con
-    # la cantidad de barras para que ninguna quede apretada.
-    territory_view=st.radio("Ver por",["Estado","Municipio"],index=1,horizontal=True,key="territory_view_f01")
-    if territory_view=="Estado":
-        st.markdown("#### Estados con mayor presencia")
-        # Color por intensidad (no un solo tono plano): la barra más larga ya
-        # lo dice, pero el degradado refuerza a simple vista dónde hay más
-        # presencia, sobre todo al exportar la gráfica sola al PDF.
-        fig=px.bar(top_states,x="socios",y="estado",orientation="h",text="socios",color="socios",color_continuous_scale=[[0,tint(NAVY,.82)],[1,NAVY]],labels={"socios":"Socios activos","estado":""})
-        fig.update_traces(textposition="outside"); fig.update_layout(coloraxis_showscale=False); plot(fig,max(390,40*len(top_states)+90),"top_states_f01")
-        section_figures.setdefault("Presencia de socios", []).append(fig)
-    else:
-        st.markdown("#### Municipios con mayor presencia")
-        fig=px.bar(top_munis,x="socios",y="territorio",orientation="h",text="socios",color="socios",color_continuous_scale=[[0,tint(SKY,.75)],[1,SKY]],labels={"socios":"Socios activos","territorio":""})
-        fig.update_traces(textposition="outside"); fig.update_layout(coloraxis_showscale=False); plot(fig,max(390,40*len(top_munis)+90),"top_munis_f01")
-        section_figures.setdefault("Presencia de socios", []).append(fig)
-    # Verificación explícita (no solo una nota genérica): se calcula cuántas
-    # organizaciones están en más de un estado y cuánto explican esa
-    # diferencia, para que la suma > total no se lea como un error de conteo.
-    multi_state=territory.groupby("organizacion").estado.nunique(); multi_state=multi_state[multi_state.gt(1)]
-    overcount_states=int((multi_state-1).sum())
-    total_socios=active_places.organizacion.nunique()
-    if not multi_state.empty:
-        examples=", ".join(multi_state.sort_values(ascending=False).index[:3])
-        overlap_note=f"Verificado: {len(multi_state)} organización(es) — por ejemplo {examples} — tienen presencia en más de un estado y se cuentan una vez en cada uno, lo que explica exactamente esos {overcount_states} de diferencia."
-    else:
-        overlap_note="Verificado: ninguna organización tiene presencia en más de un estado en los filtros actuales, por lo que la suma coincide con el total."
-    st.caption(f"El eje cuenta organizaciones (socios) con presencia vigente, no puntos de intervención — la suma de las barras ({int(top_states.socios.sum())}) puede superar el total de {num(total_socios)} socios con vigencia activa (distinto del conteo de la tarjeta resumen, que cuenta socios con puntos en el período seleccionado). {overlap_note} Expanda un estado para consultar municipios, parroquias y socios con presencia vigente.")
-    for state_name in sorted(territory.estado.dropna().unique()):
-        state_rows=territory[territory.estado.eq(state_name)]; state_total=state_rows.organizacion.nunique()
-        with st.expander(f"{state_name} · {state_total} socio(s)"):
-            hierarchy=state_rows.groupby(["municipio","parroquia"])["organizacion"].apply(lambda s:", ".join(sorted(set(s)))).reset_index(name="Socios con presencia")
-            hierarchy.columns=["Municipio","Parroquia","Socios con presencia"]
-            st.dataframe(hierarchy,hide_index=True,width="stretch")
-
     # Vocabulario alineado al F01 real (grupo "Servicios y apoyos de la
     # organización": pregunta 5.1 "Seleccione las áreas o servicios del
     # establecimiento de salud que reciben apoyo" y 5.2 "tipo(s) de apoyo que
     # serán proporcionados"). El formulario nunca usa la palabra "oferta"
     # para esto — usa "apoyo".
-    st.markdown('<div id="apoyos-establecimientos-f01" class="section-kicker">04 · Apoyos a establecimientos de salud</div><h2>Servicios y apoyos que las organizaciones brindan</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="apoyos-establecimientos-f01" class="section-kicker">05 · Apoyos a establecimientos de salud</div><h2>Servicios y apoyos que las organizaciones brindan</h2>',unsafe_allow_html=True)
     facility_points_all=p[p.foco.eq("Establecimiento de salud")]
     facility_type_filter=st.selectbox("Filtrar por tipo de establecimiento de salud",["Todos"]+sorted(facility_points_all.tipo_punto.dropna().unique()),key="facility_type_filter")
     facility_points=facility_points_all[facility_points_all.tipo_punto.eq(facility_type_filter)] if facility_type_filter!="Todos" else facility_points_all
@@ -1192,7 +1241,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     # Vocabulario alineado al F01 real: la organización "realiza acciones de
     # salud pública" en ciertas "áreas temáticas" (pregunta sobre
     # intervention_areas) — tampoco usa "oferta".
-    st.markdown('<div id="acciones-publicas-f01" class="section-kicker">05 · Acciones de salud pública</div><h2>Áreas de acción y cobertura de salud pública</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="acciones-publicas-f01" class="section-kicker">06 · Acciones de salud pública</div><h2>Áreas de acción y cobertura de salud pública</h2>',unsafe_allow_html=True)
     public_points_for_charts=p[p.foco.eq("Salud pública")]
     public_types=public_points_for_charts.groupby("tipo_punto").id_punto.nunique().reset_index(name="puntos")
     public_orgs=public_points_for_charts.groupby("organizacion").id_punto.nunique().reset_index(name="puntos")
@@ -1238,7 +1287,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
         set_value_tile_labels(fig,"puntos"); plot(fig,540,"public_actions_tree")
         section_figures.setdefault("Paquetes de apoyo", []).append(fig)
 
-    st.markdown('<div id="capacidad-f01" class="section-kicker">06 · Capacidad operativa</div><h2>Modalidad de atención y personal disponible</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="capacidad-f01" class="section-kicker">07 · Capacidad operativa</div><h2>Modalidad de atención y personal disponible</h2>',unsafe_allow_html=True)
     st.markdown("### Modalidad de atención (%)")
     mode_labels={"modalidad_intramural":"Atención intramural","modalidad_extramural":"Atención extramural","modalidad_movil":"Unidad Móvil","modalidad_sede_propia":"Sede Propia","modalidad_pago_atenciones":"Pago por atenciones","modalidad_oficina":"Oficina","modalidad_otra":"Otra"}
     mode_values=pd.DataFrame({"modalidad":list(mode_labels.values()),"selecciones":[pd.to_numeric(active_places.get(col,0),errors="coerce").fillna(0).sum() if col in active_places else 0 for col in mode_labels]})
@@ -1319,7 +1368,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             section_figures.setdefault("Personal", []).append(fig)
             st.caption(f"Con base en los {len(schedule_scope)} puntos que reportaron días y horarios de atención en el F01 (bloque «Días y horas de atención»); el resto de los puntos de la selección actual no tiene este dato registrado.")
 
-    st.markdown(f'<div id="inversion-f01" class="section-kicker">07 · Recursos movilizados</div><h2>Inversión registrada · USD {num(p.inversion_usd.sum())}</h2>',unsafe_allow_html=True)
+    st.markdown(f'<div id="inversion-f01" class="section-kicker">08 · Recursos movilizados</div><h2>Inversión registrada · USD {num(p.inversion_usd.sum())}</h2>',unsafe_allow_html=True)
     st.caption(f"Corresponde a los puntos con reportes entre el {first_f01} y el {last_f01} (periodo de reportes del F01 indicado arriba).")
     inv_all=p.groupby(["lugar","foco"],as_index=False).inversion_usd.sum().sort_values("inversion_usd",ascending=False)
     st.markdown("### Puntos con mayor inversión")
