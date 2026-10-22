@@ -994,7 +994,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
         territorial=selected_coverage.copy()
         territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
-        filtered_territorial=[]
         for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
             subset=territorial[territorial.foco.eq(focus_name)]
             st.markdown(f"### {heading}")
@@ -1007,7 +1006,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
             )
             if choice!=all_label:
                 subset=subset[subset.tipo_accion.eq(choice)]
-            filtered_territorial.append(subset)
             if subset.empty:
                 st.info("No hay registros de este foco con los filtros seleccionados.")
                 continue
@@ -1037,33 +1035,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,47*len(order)+290),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
                  margin=dict(l=8,r=28,t=18,b=205))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        territorial=pd.concat(filtered_territorial,ignore_index=True)
         st.caption("Las barras están apiladas por tipo de acción. Un punto con varias acciones aparece en varios segmentos; el largo total de la barra no equivale a puntos únicos.")
-
-        left_chart,right_chart=st.columns(2,gap="large")
-        for chart_col,focus_name,title,color,chart_key in [
-            (left_chart,"Establecimiento de salud","Servicios más ofertados en establecimientos de salud",ORANGE,"ranking_facility_f01"),
-            (right_chart,"Salud pública","Acciones de salud pública más ofertadas",SKY,"ranking_public_f01"),
-        ]:
-            with chart_col:
-                st.markdown(f"### {title}")
-                actions=territorial[territorial.foco.eq(focus_name)]
-                if actions.empty:
-                    st.info("Sin servicios o acciones registrados con los filtros seleccionados.")
-                    continue
-                ranking=(actions.groupby("tipo_accion",as_index=False)
-                         .agg(puntos=("id_punto","nunique"))
-                         .sort_values(["puntos","tipo_accion"],ascending=[False,True]))
-                action_order=ranking.tipo_accion.tolist()
-                fig=px.bar(ranking,x="puntos",y="tipo_accion",orientation="h",text="puntos",
-                           category_orders={"tipo_accion":action_order},color_discrete_sequence=[color],
-                           labels={"puntos":"Puntos que la ofertan","tipo_accion":""})
-                fig.update_traces(textposition="outside",hovertemplate="%{y}<br>%{x} punto(s)<extra></extra>")
-                fig.update_yaxes(tickmode="array",tickvals=action_order,
-                                 ticktext=[name if len(name)<=30 else name[:27]+"…" for name in action_order],
-                                 automargin=True)
-                plot(fig,max(360,40*len(ranking)+95),chart_key,margin=dict(l=8,r=36,t=16,b=32))
-                section_figures.setdefault("Oferta por tipo de acción",[]).append(fig)
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
