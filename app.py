@@ -987,32 +987,19 @@ if module == RADIO_MODULE_OPTIONS[0]:
         territorial=pd.concat(filtered_territorial,ignore_index=True)
         st.caption("Las barras están apiladas por tipo de acción. Un punto con varias acciones aparece en varios segmentos; el largo total de la barra no equivale a puntos únicos.")
 
-        st.markdown("### Servicios y acciones más ofertados")
-        ranking_cols=st.columns(2)
-        for col,focus_name,heading,color in [(ranking_cols[0],"Establecimiento de salud","Establecimientos de salud",RED),
-                                              (ranking_cols[1],"Salud pública","Salud pública",YELLOW)]:
-            subset=territorial[territorial.foco.eq(focus_name)]
-            with col:
-                st.markdown(f"#### {heading}")
-                if subset.empty:
-                    st.info("Sin registros con los filtros seleccionados.")
-                    continue
-                ranking=subset.groupby("tipo_accion",as_index=False).agg(puntos=("id_punto","nunique")).sort_values("puntos",ascending=False)
-                fig=px.bar(ranking,x="puntos",y="tipo_accion",orientation="h",text="puntos",
-                           category_orders={"tipo_accion":ranking.tipo_accion.tolist()},color_discrete_sequence=[color],
-                           labels={"puntos":"Puntos que lo ofertan","tipo_accion":""})
-                fig.update_traces(textposition="outside")
-                plot(fig,max(320,45*len(ranking)+95),f"ranking_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01")
-                section_figures.setdefault("Servicios y acciones más ofertados",[]).append(fig)
-
-        detail=territorial.groupby(["territorio","foco","tipo_accion"]).agg(
-            puntos=("id_punto","nunique"),
-            organizaciones=("organizacion",lambda s:", ".join(sorted(set(s))))
-        ).reset_index().sort_values(["territorio","tipo_accion"])
-        detail.columns=["Territorio","Foco","Tipo de acción","Puntos","Organizaciones que la cubren"]
-        st.markdown("#### ¿Quién cubre cada acción?")
-        st.dataframe(detail,hide_index=True,width="stretch",height=min(650,72+35*len(detail)))
-        st.caption("La tabla identifica las acciones y organizaciones. Un punto puede tener varias acciones, por lo que sus filas no deben sumarse como puntos únicos.")
+        st.markdown("### Servicios más ofertados en establecimientos de salud")
+        facility_services=territorial[territorial.foco.eq("Establecimiento de salud")]
+        if facility_services.empty:
+            st.info("Sin servicios registrados con los filtros seleccionados.")
+        else:
+            ranking=(facility_services.groupby("tipo_accion",as_index=False)
+                     .agg(puntos=("id_punto","nunique")).sort_values("puntos",ascending=False))
+            fig=px.bar(ranking,x="puntos",y="tipo_accion",orientation="h",text="puntos",
+                       category_orders={"tipo_accion":ranking.tipo_accion.tolist()},color_discrete_sequence=[RED],
+                       labels={"puntos":"Puntos que lo ofertan","tipo_accion":""})
+            fig.update_traces(textposition="outside")
+            plot(fig,max(320,45*len(ranking)+95),"ranking_facility_f01")
+            section_figures.setdefault("Servicios más ofertados",[]).append(fig)
 
     st.markdown('<div id="mapa-f01" class="section-kicker">03 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
     mapped=p.dropna(subset=["latitud","longitud"])
