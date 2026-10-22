@@ -568,9 +568,8 @@ def support_ranking_table(ranking: pd.DataFrame, *, max_height: int = 700) -> No
     )
 
 
-def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool,
-                            action_heading: str) -> None:
-    """Puntos distintos por acción y territorio, con barras de intensidad."""
+def territorial_offer_table(ranking: pd.DataFrame, *, action_heading: str) -> None:
+    """Puntos distintos por acción y distrito, con organizaciones e intensidad."""
     maximum=max(1,int(ranking.puntos.max()))
     rows=[]
     for row in ranking.itertuples(index=False):
@@ -579,24 +578,25 @@ def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool,
         width=max(3,round(relative*100))
         intensity=math.log1p(amount)/math.log1p(maximum)
         color=tint(BLUE,.75-.7*intensity)
-        place=(f"<td>{html_lib.escape(str(row.municipio))}</td>"
-               if show_municipality else "")
+        district=html_lib.escape(str(row.municipio))
+        state=html_lib.escape(str(row.estado))
+        organizations=html_lib.escape(str(row.organizaciones))
         rows.append(
             "<tr>"
-            f"<td>{html_lib.escape(str(row.estado))}</td>{place}"
+            f"<td title='Estado: {state}'>{district}</td>"
             f"<td>{html_lib.escape(str(row.tipo_accion))}</td>"
+            f"<td class='offer-organizations'>{organizations}</td>"
             "<td><div class='offer-meter'>"
             f"<span style='width:{width}%;background:{color}'></span><b>{amount}</b>"
             "</div></td></tr>"
         )
-    municipality_header="<th>Municipio</th>" if show_municipality else ""
-    height=min(730,52*len(rows)+52)
+    height=min(730,64*len(rows)+52)
     st.markdown(
         f'<div class="offer-scale">Menor oferta <span></span> Mayor oferta</div>'
         f'<div class="support-table-wrap" style="max-height:{height}px">'
         f'<table class="support-table offer-table"><thead><tr>'
-        f'<th>Estado</th>{municipality_header}'
-        f'<th>{html_lib.escape(action_heading)}</th><th>Puntos que la ofertan</th>'
+        f'<th>Distrito</th><th>{html_lib.escape(action_heading)}</th>'
+        f'<th>Organizaciones</th><th>Puntos que la ofertan</th>'
         f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>',
         unsafe_allow_html=True,
     )
@@ -814,8 +814,10 @@ st.markdown(f"""
   .support-meter::before{{content:"";grid-column:1;grid-row:1;height:10px;background:{tint(GRAY,.82)};border-radius:999px}}
   .support-meter span{{grid-column:1;grid-row:1;height:10px;background:{RED};border-radius:999px;min-width:0}}
   .support-meter b{{grid-column:2;font-weight:500;color:{INK};text-align:right}}
-  .offer-table{{min-width:680px}}
+  .offer-table{{min-width:850px}}
   .offer-table th,.offer-table td{{width:auto!important}}
+  .offer-table th:first-child,.offer-table td:first-child{{min-width:130px}}
+  .offer-organizations{{max-width:340px;line-height:1.45;overflow-wrap:anywhere}}
   .offer-table th:last-child,.offer-table td:last-child{{min-width:190px;width:20%!important}}
   .offer-meter{{display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:center;position:relative}}
   .offer-meter::before{{content:"";grid-column:1;grid-row:1;height:14px;background:{tint(GRAY,.82)};border-radius:999px}}
@@ -1057,8 +1059,8 @@ if module == RADIO_MODULE_OPTIONS[0]:
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
-        st.caption("Cada cifra cuenta puntos de intervención distintos que ofrecen el servicio o la acción. La barra y su color comparan la oferta dentro de cada cuadro.")
-        offer_groups=["estado"]+(["municipio"] if territory_view=="Municipio" else [])+["tipo_accion"]
+        st.caption("Distrito corresponde al municipio registrado en F01. Cada fila muestra los puntos distintos que ofrecen el servicio o la acción y las organizaciones que participan; la barra compara la oferta dentro de cada cuadro.")
+        offer_groups=["estado","municipio","tipo_accion"]
         for focus_name, heading, label, all_label, key, column_heading in [
             ("Establecimiento de salud", "Servicios en establecimientos de salud", "Filtrar servicio ofertado", "Todos los servicios", "offer_facility_service_f01", "Servicio ofertado"),
             ("Salud pública", "Acciones de salud pública", "Filtrar acción ofertada", "Todas las acciones", "offer_public_action_f01", "Acción ofertada"),
@@ -1070,14 +1072,15 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 selected_offer=st.selectbox(label,options,key=key)
                 if selected_offer!=all_label:
                     offer_subset=offer_subset[offer_subset.tipo_accion.eq(selected_offer)]
+                    st.caption(f"Total de puntos distintos que ofertan «{selected_offer}»: {num(offer_subset.id_punto.nunique())}.")
                 if offer_subset.empty:
                     st.info("No hay puntos para esta selección.")
                 else:
                     offer_ranking=(offer_subset.groupby(offer_groups,as_index=False,dropna=False)
-                                   .agg(puntos=("id_punto","nunique"))
-                                   .sort_values(["puntos","estado","tipo_accion"],ascending=[False,True,True]))
-                    territorial_offer_table(offer_ranking,show_municipality=territory_view=="Municipio",
-                                            action_heading=column_heading)
+                                   .agg(puntos=("id_punto","nunique"),
+                                        organizaciones=("organizacion",lambda names: " · ".join(sorted({str(name) for name in names.dropna() if str(name).strip()}))))
+                                   .sort_values(["puntos","estado","municipio","tipo_accion"],ascending=[False,True,True,True]))
+                    territorial_offer_table(offer_ranking,action_heading=column_heading)
 
     st.markdown('<div id="mapa-f01" class="section-kicker">03 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
     mapped=p.dropna(subset=["latitud","longitud"])
