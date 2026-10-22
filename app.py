@@ -740,6 +740,8 @@ st.markdown(f"""
   .sidebar-update a{{text-decoration:none;text-align:center;color:white;background:{BLUE};border-radius:8px;padding:9px 6px;font-weight:700;font-size:.8rem}}
   .sidebar-update a::after{{content:" ↗";}}
   .sidebar-update a:hover{{background:{NAVY}}}
+  .st-key-territory_facility_service_f01,.st-key-territory_public_action_f01{{max-width:420px}}
+  .st-key-territory_facility_service_f01 [data-baseweb="select"] svg,.st-key-territory_public_action_f01 [data-baseweb="select"] svg{{color:{BLUE};fill:{BLUE};width:22px;height:22px}}
   .st-key-calendar_nav_btn button{{background:{tint(ORANGE,.08)}!important;color:white!important;border:none!important;font-weight:700!important}}
   .st-key-calendar_nav_btn button:hover{{background:{ORANGE}!important;color:white!important}}
   .st-key-calendar_nav_btn button p{{color:white!important}}
@@ -969,7 +971,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             is_facility=focus_name=="Establecimiento de salud"
             all_label="Todos los servicios" if is_facility else "Todas las acciones"
             choice=st.selectbox(
-                "Filtrar servicio de establecimientos de salud" if is_facility else "Filtrar acción de salud pública",
+                "Explorar servicios ofertados" if is_facility else "Explorar acciones de salud pública",
                 [all_label]+sorted(subset.tipo_accion.dropna().unique()),
                 key="territory_facility_service_f01" if is_facility else "territory_public_action_f01",
             )
