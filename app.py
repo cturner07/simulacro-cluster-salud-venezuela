@@ -568,6 +568,41 @@ def support_ranking_table(ranking: pd.DataFrame, *, max_height: int = 700) -> No
     )
 
 
+def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool) -> None:
+    """Oferta por acción, estado y organización con barras de intensidad."""
+    maximum=max(1,int(ranking.puntos.max()))
+    rows=[]
+    for row in ranking.itertuples(index=False):
+        amount=int(row.puntos)
+        relative=amount/maximum
+        width=max(3,round(relative*100))
+        intensity=math.log1p(amount)/math.log1p(maximum)
+        color=tint(BLUE,.75-.7*intensity)
+        place=(f"<td>{html_lib.escape(str(row.municipio))}</td>"
+               if show_municipality else "")
+        rows.append(
+            "<tr>"
+            f"<td>{html_lib.escape(str(row.estado))}</td>{place}"
+            f"<td>{html_lib.escape(str(row.organizacion))}</td>"
+            f"<td>{'Establecimiento de salud' if row.foco=='Establecimiento de salud' else 'Salud pública'}</td>"
+            f"<td>{html_lib.escape(str(row.tipo_accion))}</td>"
+            "<td><div class='offer-meter'>"
+            f"<span style='width:{width}%;background:{color}'></span><b>{amount}</b>"
+            "</div></td></tr>"
+        )
+    municipality_header="<th>Municipio</th>" if show_municipality else ""
+    height=min(730,52*len(rows)+52)
+    st.markdown(
+        f'<div class="offer-scale">Menor oferta <span></span> Mayor oferta</div>'
+        f'<div class="support-table-wrap" style="max-height:{height}px">'
+        f'<table class="support-table offer-table"><thead><tr>'
+        f'<th>Estado</th>{municipality_header}<th>Organización</th><th>Foco</th>'
+        f'<th>Servicio o acción ofertada</th><th>Puntos que la ofertan</th>'
+        f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def complete_dashboard_export() -> None:
     """Abre la impresión del navegador para guardar toda la vista activa como PDF."""
     with st.container(key="print_export"):
@@ -780,6 +815,15 @@ st.markdown(f"""
   .support-meter::before{{content:"";grid-column:1;grid-row:1;height:10px;background:{tint(GRAY,.82)};border-radius:999px}}
   .support-meter span{{grid-column:1;grid-row:1;height:10px;background:{RED};border-radius:999px;min-width:0}}
   .support-meter b{{grid-column:2;font-weight:500;color:{INK};text-align:right}}
+  .offer-table{{min-width:1040px}}
+  .offer-table th,.offer-table td{{width:auto!important}}
+  .offer-table th:last-child,.offer-table td:last-child{{min-width:190px;width:20%!important}}
+  .offer-meter{{display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:center;position:relative}}
+  .offer-meter::before{{content:"";grid-column:1;grid-row:1;height:14px;background:{tint(GRAY,.82)};border-radius:999px}}
+  .offer-meter span{{grid-column:1;grid-row:1;height:14px;border-radius:999px;z-index:1}}
+  .offer-meter b{{grid-column:2;color:{NAVY};text-align:right}}
+  .offer-scale{{display:flex;align-items:center;gap:9px;justify-content:flex-end;color:{MUTED};font-size:.8rem;margin:6px 0}}
+  .offer-scale span{{display:inline-block;width:120px;height:12px;border-radius:999px;background:linear-gradient(90deg,{tint(BLUE,.72)},{SKY},{NAVY})}}
   @media print{{
     [data-testid="stSidebar"],header,[data-testid="stToolbar"],.stRadio,.stDownloadButton,.st-key-calendar_nav_btn,.st-key-print_export{{display:none!important}}
     .block-container{{max-width:none!important;padding:0!important}}
@@ -1000,6 +1044,17 @@ if module == RADIO_MODULE_OPTIONS[0]:
             fig.update_traces(textposition="outside")
             plot(fig,max(320,45*len(ranking)+95),"ranking_facility_f01")
             section_figures.setdefault("Servicios más ofertados",[]).append(fig)
+
+        st.markdown("### Oferta por estado y organización")
+        st.caption("Cada fila identifica un servicio o acción y la organización que lo ofrece. La cifra cuenta puntos de intervención distintos; la barra y su color muestran la cobertura relativa dentro de la selección actual.")
+        offer_groups=["estado"]+(["municipio"] if territory_view=="Municipio" else [])+["organizacion","foco","tipo_accion"]
+        offer_ranking=(territorial.groupby(offer_groups,as_index=False)
+                       .agg(puntos=("id_punto","nunique"))
+                       .sort_values(["puntos","estado","organizacion","tipo_accion"],ascending=[False,True,True,True]))
+        if offer_ranking.empty:
+            st.info("No hay servicios o acciones para los filtros seleccionados.")
+        else:
+            territorial_offer_table(offer_ranking,show_municipality=territory_view=="Municipio")
 
     st.markdown('<div id="mapa-f01" class="section-kicker">03 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
     mapped=p.dropna(subset=["latitud","longitud"])
