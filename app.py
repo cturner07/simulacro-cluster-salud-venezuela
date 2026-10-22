@@ -978,31 +978,22 @@ if module == RADIO_MODULE_OPTIONS[0]:
         st.caption("Distribución de servicios y acciones del simulacro histórico. Puede explorar cada foco por separado; los filtros situados sobre el mapa también se aplican aquí.")
         territory_view=st.radio("Nivel territorial",["Estado","Municipio"],horizontal=True,key="territory_view_f01")
         territorial=selected_coverage.copy()
-        facility_options=sorted(territorial.loc[territorial.foco.eq("Establecimiento de salud"),"tipo_accion"].dropna().unique())
-        public_options=sorted(territorial.loc[territorial.foco.eq("Salud pública"),"tipo_accion"].dropna().unique())
-        territory_facility_col,territory_public_col=st.columns(2)
-        with territory_facility_col:
-            territory_facility_choice=st.selectbox(
-                "Filtrar servicio de establecimientos de salud",
-                ["Todos los servicios"]+facility_options,
-                key="territory_facility_service_f01",
-            )
-        with territory_public_col:
-            territory_public_choice=st.selectbox(
-                "Filtrar acción de salud pública",
-                ["Todas las acciones"]+public_options,
-                key="territory_public_action_f01",
-            )
-        if territory_facility_choice!="Todos los servicios":
-            territorial=territorial[~territorial.foco.eq("Establecimiento de salud") | territorial.tipo_accion.eq(territory_facility_choice)]
-        if territory_public_choice!="Todas las acciones":
-            territorial=territorial[~territorial.foco.eq("Salud pública") | territorial.tipo_accion.eq(territory_public_choice)]
-        territorial=territorial.copy()
         territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
+        filtered_territorial=[]
         for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
             subset=territorial[territorial.foco.eq(focus_name)]
             st.markdown(f"### {heading}")
+            is_facility=focus_name=="Establecimiento de salud"
+            all_label="Todos los servicios" if is_facility else "Todas las acciones"
+            choice=st.selectbox(
+                "Filtrar servicio de establecimientos de salud" if is_facility else "Filtrar acción de salud pública",
+                [all_label]+sorted(subset.tipo_accion.dropna().unique()),
+                key="territory_facility_service_f01" if is_facility else "territory_public_action_f01",
+            )
+            if choice!=all_label:
+                subset=subset[subset.tipo_accion.eq(choice)]
+            filtered_territorial.append(subset)
             if subset.empty:
                 st.info("No hay registros de este foco con los filtros seleccionados.")
                 continue
@@ -1015,6 +1006,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(390,45*len(order)+150),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
                  margin=dict(l=8,r=28,t=18,b=100))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
+        territorial=pd.concat(filtered_territorial,ignore_index=True)
         st.caption("Las barras están apiladas por tipo de acción. Un punto con varias acciones aparece en varios segmentos; el largo total de la barra no equivale a puntos únicos.")
 
         st.markdown("### Servicios y acciones más ofertados")
