@@ -740,8 +740,8 @@ st.markdown(f"""
   .sidebar-update a{{text-decoration:none;text-align:center;color:white;background:{BLUE};border-radius:8px;padding:9px 6px;font-weight:700;font-size:.8rem}}
   .sidebar-update a::after{{content:" ↗";}}
   .sidebar-update a:hover{{background:{NAVY}}}
-  .st-key-territory_facility_service_f01,.st-key-territory_public_action_f01{{max-width:420px}}
-  .st-key-territory_facility_service_f01 [data-baseweb="select"] svg,.st-key-territory_public_action_f01 [data-baseweb="select"] svg{{color:{BLUE};fill:{BLUE};width:22px;height:22px}}
+  .st-key-territory_facility_service_f01,.st-key-territory_public_action_f01{{max-width:340px}}
+  .st-key-territory_facility_service_f01 [data-baseweb="select"] svg,.st-key-territory_public_action_f01 [data-baseweb="select"] svg{{color:{BLUE}!important;fill:{BLUE}!important;width:22px!important;height:22px!important;stroke-width:3}}
   .st-key-calendar_nav_btn button{{background:{tint(ORANGE,.08)}!important;color:white!important;border:none!important;font-weight:700!important}}
   .st-key-calendar_nav_btn button:hover{{background:{ORANGE}!important;color:white!important}}
   .st-key-calendar_nav_btn button p{{color:white!important}}
