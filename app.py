@@ -912,7 +912,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     f01_report_dates=pd.concat([pd.to_datetime(d["facilities"].fecha_reporte,errors="coerce"),pd.to_datetime(d["reports_prepared"].fecha_reporte,errors="coerce")]).dropna()
     first_f01=f01_report_dates.min().strftime("%d/%m/%Y"); last_f01=f01_report_dates.max().strftime("%d/%m/%Y")
     section_band("SOCIOS Y APOYOS DEL CLÚSTER SALUD", "¿Quiénes son los socios, qué ofrecen, a qué establecimientos de salud apoyan y qué acciones de salud pública realizan?")
-    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#panorama-f01">01 · Panorama</a><a href="#mapa-f01">02 · Mapa</a><a href="#territorio-f01">03 · Alcance territorial</a><a href="#socios-f01">04 · Socios</a><a href="#apoyos-establecimientos-f01">05 · Apoyo a establecimientos de salud</a><a href="#acciones-publicas-f01">06 · Acciones de salud pública</a><a href="#capacidad-f01">07 · Capacidad operativa</a><a href="#inversion-f01">08 · Inversión</a></div>',unsafe_allow_html=True)
+    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#panorama-f01">01 · Panorama</a><a href="#territorio-f01">02 · Alcance territorial</a><a href="#mapa-f01">03 · Mapa</a><a href="#socios-f01">04 · Socios</a><a href="#apoyos-establecimientos-f01">05 · Apoyo a establecimientos de salud</a><a href="#acciones-publicas-f01">06 · Acciones de salud pública</a><a href="#capacidad-f01">07 · Capacidad operativa</a><a href="#inversion-f01">08 · Inversión</a></div>',unsafe_allow_html=True)
     professional_total=pd.to_numeric(staffing[all_staff_cols].stack(),errors="coerce").sum()
     parish_count=p.loc[p.parroquia.ne("No reportada"),"parroquia"].nunique()
     cards=[
@@ -926,49 +926,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
     ]
     st.markdown('<div id="panorama-f01" class="section-kicker">01 · Panorama general</div><h3>Oferta registrada</h3>',unsafe_allow_html=True)
     st.markdown('<div class="metric-row" style="grid-template-columns:repeat(7,1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
-    st.markdown('<div id="mapa-f01" class="section-kicker">02 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
     coverage=filt(d["coverage_actions"],True)
     public_rows=coverage.foco.eq("Salud pública")
     active_public=coverage.desde.isna() | coverage.desde.le(window_end)
     active_public &= coverage.hasta.isna() | coverage.hasta.ge(window_start)
     coverage=coverage[~public_rows | active_public].copy()
     selected_coverage=coverage
-    mapped=p.dropna(subset=["latitud","longitud"])
-    if mapped.empty: st.info("No hay coordenadas para estos filtros.")
-    else:
-        mapped=mapped.copy(); mapped["foco_formulario"]=mapped.foco.map({"Establecimiento de salud":"Acciones en el establecimiento de salud","Salud pública":"Acciones de salud pública"})
-        map_focus_colors={"Acciones en el establecimiento de salud":RED,"Acciones de salud pública":YELLOW}
-        fig=px.scatter_map(mapped,lat="latitud",lon="longitud",color="foco_formulario",size="inversion_usd",size_max=19,hover_name="lugar",hover_data={"organizacion":True,"estado":True,"municipio":True,"inversion_usd":':$,.0f'},color_discrete_map=map_focus_colors,map_style="carto-positron",zoom=8.7,center={"lat":10.30,"lon":-66.98},title="",labels={"foco_formulario":"Foco de intervención"})
-        fig.update_traces(marker={"opacity":.88})
-        add_map_marker_outline(fig, mapped, "inversion_usd")
-        # Plotly no permite fijar un zoom mínimo (solo "bounds" para acotar el
-        # panning/zoom-out a una región): no existe forma de bloquear el
-        # zoom-out y dejar solo zoom-in con esta librería. Como mitigación se
-        # acota la vista a la región de los puntos (con margen), así no se
-        # puede alejar hasta ver, por ejemplo, todo el planeta. Se usa una
-        # caja de sanidad (Venezuela continental) para descartar solo
-        # coordenadas realmente erróneas antes de tomar min/max — con
-        # percentiles se recortaban puntos reales del extremo este (p. ej.
-        # Oritapo/Carúpano) que sí deben verse.
-        sane=mapped[mapped.latitud.between(-2,14)&mapped.longitud.between(-76,-58)]
-        ref=sane if not sane.empty else mapped
-        lat_lo,lat_hi=ref.latitud.min(),ref.latitud.max()
-        lon_lo,lon_hi=ref.longitud.min(),ref.longitud.max()
-        lat_pad=max(0.2,(lat_hi-lat_lo)*0.25); lon_pad=max(0.2,(lon_hi-lon_lo)*0.25)
-        fig.update_layout(map=dict(bounds=dict(
-            west=max(-180,lon_lo-lon_pad), east=min(180,lon_hi+lon_pad),
-            south=max(-90,lat_lo-lat_pad), north=min(90,lat_hi+lat_pad),
-        )))
-        # La leyenda muestra cuántos puntos hay de cada color (no solo el
-        # nombre del foco), para dar más detalle sin agregar otro elemento
-        # aparte del mapa.
-        focus_counts=mapped.foco_formulario.value_counts()
-        fig.for_each_trace(lambda t: t.update(name=f"{t.name} ({num(focus_counts.get(t.name,0))})"))
-        plot(fig,590,"f01_map",is_map=True)
-        section_figures.setdefault("Resumen territorial", []).append(fig)
-        st.caption("El color distingue el foco y el tamaño del punto representa la inversión registrada en USD. En este simulacro, los montos son ilustrativos. El zoom con la rueda del mouse está desactivado para evitar cambios accidentales al hacer scroll de la página; use los botones +/- del mapa.")
-
-    st.markdown('<div id="territorio-f01" class="section-kicker">03 · Alcance territorial</div><h2>Presencia territorial</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="territorio-f01" class="section-kicker">02 · Alcance territorial</div><h2>Presencia territorial</h2>',unsafe_allow_html=True)
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
@@ -1049,6 +1013,32 @@ if module == RADIO_MODULE_OPTIONS[0]:
         st.markdown("#### ¿Quién cubre cada acción?")
         st.dataframe(detail,hide_index=True,width="stretch",height=min(650,72+35*len(detail)))
         st.caption("La tabla identifica las acciones y organizaciones. Un punto puede tener varias acciones, por lo que sus filas no deben sumarse como puntos únicos.")
+
+    st.markdown('<div id="mapa-f01" class="section-kicker">03 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
+    mapped=p.dropna(subset=["latitud","longitud"])
+    if mapped.empty: st.info("No hay coordenadas para estos filtros.")
+    else:
+        mapped=mapped.copy(); mapped["foco_formulario"]=mapped.foco.map({"Establecimiento de salud":"Acciones en el establecimiento de salud","Salud pública":"Acciones de salud pública"})
+        map_focus_colors={"Acciones en el establecimiento de salud":RED,"Acciones de salud pública":YELLOW}
+        fig=px.scatter_map(mapped,lat="latitud",lon="longitud",color="foco_formulario",size="inversion_usd",size_max=19,hover_name="lugar",hover_data={"organizacion":True,"estado":True,"municipio":True,"inversion_usd":':$,.0f'},color_discrete_map=map_focus_colors,map_style="carto-positron",zoom=8.7,center={"lat":10.30,"lon":-66.98},title="",labels={"foco_formulario":"Foco de intervención"})
+        fig.update_traces(marker={"opacity":.88})
+        add_map_marker_outline(fig, mapped, "inversion_usd")
+        # Acotar la vista a la región de los puntos, sin recortar los
+        # registros válidos de los extremos geográficos.
+        sane=mapped[mapped.latitud.between(-2,14)&mapped.longitud.between(-76,-58)]
+        ref=sane if not sane.empty else mapped
+        lat_lo,lat_hi=ref.latitud.min(),ref.latitud.max()
+        lon_lo,lon_hi=ref.longitud.min(),ref.longitud.max()
+        lat_pad=max(0.2,(lat_hi-lat_lo)*0.25); lon_pad=max(0.2,(lon_hi-lon_lo)*0.25)
+        fig.update_layout(map=dict(bounds=dict(
+            west=max(-180,lon_lo-lon_pad), east=min(180,lon_hi+lon_pad),
+            south=max(-90,lat_lo-lat_pad), north=min(90,lat_hi+lat_pad),
+        )))
+        focus_counts=mapped.foco_formulario.value_counts()
+        fig.for_each_trace(lambda t: t.update(name=f"{t.name} ({num(focus_counts.get(t.name,0))})"))
+        plot(fig,590,"f01_map",is_map=True)
+        section_figures.setdefault("Resumen territorial", []).append(fig)
+        st.caption("El color distingue el foco y el tamaño del punto representa la inversión registrada en USD. En este simulacro, los montos son ilustrativos. El zoom con la rueda del mouse está desactivado para evitar cambios accidentales al hacer scroll de la página; use los botones +/- del mapa.")
 
     st.markdown(f'<div id="socios-f01" class="section-kicker">04 · Socios</div><h2>Organizaciones y su alcance · {num(p.organizacion.nunique())} socios · {num(p.id_punto.nunique())} puntos</h2>',unsafe_allow_html=True)
     st.markdown("### Principales socios por cantidad de puntos")
