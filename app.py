@@ -975,9 +975,29 @@ if module == RADIO_MODULE_OPTIONS[0]:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones del simulacro histórico. Los filtros situados sobre el mapa también se aplican aquí.")
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Puede explorar cada foco por separado; los filtros situados sobre el mapa también se aplican aquí.")
         territory_view=st.radio("Nivel territorial",["Estado","Municipio"],horizontal=True,key="territory_view_f01")
         territorial=selected_coverage.copy()
+        facility_options=sorted(territorial.loc[territorial.foco.eq("Establecimiento de salud"),"tipo_accion"].dropna().unique())
+        public_options=sorted(territorial.loc[territorial.foco.eq("Salud pública"),"tipo_accion"].dropna().unique())
+        territory_facility_col,territory_public_col=st.columns(2)
+        with territory_facility_col:
+            territory_facility_choice=st.selectbox(
+                "Filtrar servicio de establecimientos de salud",
+                ["Todos los servicios"]+facility_options,
+                key="territory_facility_service_f01",
+            )
+        with territory_public_col:
+            territory_public_choice=st.selectbox(
+                "Filtrar acción de salud pública",
+                ["Todas las acciones"]+public_options,
+                key="territory_public_action_f01",
+            )
+        if territory_facility_choice!="Todos los servicios":
+            territorial=territorial[~territorial.foco.eq("Establecimiento de salud") | territorial.tipo_accion.eq(territory_facility_choice)]
+        if territory_public_choice!="Todas las acciones":
+            territorial=territorial[~territorial.foco.eq("Salud pública") | territorial.tipo_accion.eq(territory_public_choice)]
+        territorial=territorial.copy()
         territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
         for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
