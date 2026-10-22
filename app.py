@@ -580,12 +580,17 @@ def territorial_offer_table(ranking: pd.DataFrame, *, action_heading: str) -> No
         color=tint(BLUE,.75-.7*intensity)
         district=html_lib.escape(str(row.municipio))
         state=html_lib.escape(str(row.estado))
-        organizations=html_lib.escape(str(row.organizaciones))
+        organization_names=tuple(row.organizaciones)
+        organizations="".join(
+            f"<span>{html_lib.escape(name)}</span>" for name in organization_names
+        ) or "<span>No reportada</span>"
+        organization_count=(f"<small>{len(organization_names)} organizaciones</small>"
+                            if len(organization_names)>1 else "")
         rows.append(
             "<tr>"
             f"<td title='Estado: {state}'>{district}</td>"
             f"<td>{html_lib.escape(str(row.tipo_accion))}</td>"
-            f"<td class='offer-organizations'>{organizations}</td>"
+            f"<td class='offer-organizations'>{organization_count}<div>{organizations}</div></td>"
             "<td><div class='offer-meter'>"
             f"<span style='width:{width}%;background:{color}'></span><b>{amount}</b>"
             "</div></td></tr>"
@@ -818,6 +823,9 @@ st.markdown(f"""
   .offer-table th,.offer-table td{{width:auto!important}}
   .offer-table th:first-child,.offer-table td:first-child{{min-width:130px}}
   .offer-organizations{{max-width:340px;line-height:1.45;overflow-wrap:anywhere}}
+  .offer-organizations small{{display:block;color:{MUTED};font-weight:700;margin-bottom:5px}}
+  .offer-organizations div{{display:grid;gap:4px}}
+  .offer-organizations span{{display:block;padding:3px 7px;border-radius:5px;background:{PALE}}}
   .offer-table th:last-child,.offer-table td:last-child{{min-width:190px;width:20%!important}}
   .offer-meter{{display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:center;position:relative}}
   .offer-meter::before{{content:"";grid-column:1;grid-row:1;height:14px;background:{tint(GRAY,.82)};border-radius:999px}}
@@ -1059,7 +1067,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
-        st.caption("Distrito corresponde al municipio registrado en F01. Cada fila muestra los puntos distintos que ofrecen el servicio o la acción y las organizaciones que participan; la barra compara la oferta dentro de cada cuadro.")
+        st.caption("Distrito corresponde al municipio registrado en F01. Cada fila muestra los puntos distintos que ofrecen el servicio o la acción; si participan varias organizaciones, aparecen todas en la misma celda, sin duplicar el total.")
         offer_groups=["estado","municipio","tipo_accion"]
         for focus_name, heading, label, all_label, key, column_heading in [
             ("Establecimiento de salud", "Servicios en establecimientos de salud", "Filtrar servicio ofertado", "Todos los servicios", "offer_facility_service_f01", "Servicio ofertado"),
@@ -1078,7 +1086,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 else:
                     offer_ranking=(offer_subset.groupby(offer_groups,as_index=False,dropna=False)
                                    .agg(puntos=("id_punto","nunique"),
-                                        organizaciones=("organizacion",lambda names: " · ".join(sorted({str(name) for name in names.dropna() if str(name).strip()}))))
+                                        organizaciones=("organizacion",lambda names: tuple(sorted({str(name) for name in names.dropna() if str(name).strip()}))))
                                    .sort_values(["puntos","estado","municipio","tipo_accion"],ascending=[False,True,True,True]))
                     territorial_offer_table(offer_ranking,action_heading=column_heading)
 
