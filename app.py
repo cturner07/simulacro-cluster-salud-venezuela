@@ -568,8 +568,9 @@ def support_ranking_table(ranking: pd.DataFrame, *, max_height: int = 700) -> No
     )
 
 
-def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool) -> None:
-    """Oferta por acción, estado y organización con barras de intensidad."""
+def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool,
+                            action_heading: str) -> None:
+    """Puntos distintos por acción y territorio, con barras de intensidad."""
     maximum=max(1,int(ranking.puntos.max()))
     rows=[]
     for row in ranking.itertuples(index=False):
@@ -583,8 +584,6 @@ def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool) -
         rows.append(
             "<tr>"
             f"<td>{html_lib.escape(str(row.estado))}</td>{place}"
-            f"<td>{html_lib.escape(str(row.organizacion))}</td>"
-            f"<td>{'Establecimiento de salud' if row.foco=='Establecimiento de salud' else 'Salud pública'}</td>"
             f"<td>{html_lib.escape(str(row.tipo_accion))}</td>"
             "<td><div class='offer-meter'>"
             f"<span style='width:{width}%;background:{color}'></span><b>{amount}</b>"
@@ -596,8 +595,8 @@ def territorial_offer_table(ranking: pd.DataFrame, *, show_municipality: bool) -
         f'<div class="offer-scale">Menor oferta <span></span> Mayor oferta</div>'
         f'<div class="support-table-wrap" style="max-height:{height}px">'
         f'<table class="support-table offer-table"><thead><tr>'
-        f'<th>Estado</th>{municipality_header}<th>Organización</th><th>Foco</th>'
-        f'<th>Servicio o acción ofertada</th><th>Puntos que la ofertan</th>'
+        f'<th>Estado</th>{municipality_header}'
+        f'<th>{html_lib.escape(action_heading)}</th><th>Puntos que la ofertan</th>'
         f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>',
         unsafe_allow_html=True,
     )
@@ -815,7 +814,7 @@ st.markdown(f"""
   .support-meter::before{{content:"";grid-column:1;grid-row:1;height:10px;background:{tint(GRAY,.82)};border-radius:999px}}
   .support-meter span{{grid-column:1;grid-row:1;height:10px;background:{RED};border-radius:999px;min-width:0}}
   .support-meter b{{grid-column:2;font-weight:500;color:{INK};text-align:right}}
-  .offer-table{{min-width:1040px}}
+  .offer-table{{min-width:680px}}
   .offer-table th,.offer-table td{{width:auto!important}}
   .offer-table th:last-child,.offer-table td:last-child{{min-width:190px;width:20%!important}}
   .offer-meter{{display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:center;position:relative}}
@@ -1045,16 +1044,29 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(320,45*len(ranking)+95),"ranking_facility_f01")
             section_figures.setdefault("Servicios más ofertados",[]).append(fig)
 
-        st.markdown("### Oferta por estado y organización")
-        st.caption("Cada fila identifica un servicio o acción y la organización que lo ofrece. La cifra cuenta puntos de intervención distintos; la barra y su color muestran la cobertura relativa dentro de la selección actual.")
-        offer_groups=["estado"]+(["municipio"] if territory_view=="Municipio" else [])+["organizacion","foco","tipo_accion"]
-        offer_ranking=(territorial.groupby(offer_groups,as_index=False)
-                       .agg(puntos=("id_punto","nunique"))
-                       .sort_values(["puntos","estado","organizacion","tipo_accion"],ascending=[False,True,True,True]))
-        if offer_ranking.empty:
-            st.info("No hay servicios o acciones para los filtros seleccionados.")
-        else:
-            territorial_offer_table(offer_ranking,show_municipality=territory_view=="Municipio")
+        st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
+        st.markdown("### Oferta por territorio")
+        st.caption("Cada cifra cuenta puntos de intervención distintos que ofrecen el servicio o la acción. La barra y su color comparan la oferta dentro de cada cuadro.")
+        offer_groups=["estado"]+(["municipio"] if territory_view=="Municipio" else [])+["tipo_accion"]
+        for focus_name, heading, label, all_label, key, column_heading in [
+            ("Establecimiento de salud", "Servicios en establecimientos de salud", "Filtrar servicio ofertado", "Todos los servicios", "offer_facility_service_f01", "Servicio ofertado"),
+            ("Salud pública", "Acciones de salud pública", "Filtrar acción ofertada", "Todas las acciones", "offer_public_action_f01", "Acción ofertada"),
+        ]:
+            with st.container(border=True):
+                st.markdown(f"#### {heading}")
+                offer_subset=selected_coverage[selected_coverage.foco.eq(focus_name)].copy()
+                options=[all_label]+sorted(offer_subset.tipo_accion.dropna().unique().tolist())
+                selected_offer=st.selectbox(label,options,key=key)
+                if selected_offer!=all_label:
+                    offer_subset=offer_subset[offer_subset.tipo_accion.eq(selected_offer)]
+                if offer_subset.empty:
+                    st.info("No hay puntos para esta selección.")
+                else:
+                    offer_ranking=(offer_subset.groupby(offer_groups,as_index=False,dropna=False)
+                                   .agg(puntos=("id_punto","nunique"))
+                                   .sort_values(["puntos","estado","tipo_accion"],ascending=[False,True,True]))
+                    territorial_offer_table(offer_ranking,show_municipality=territory_view=="Municipio",
+                                            action_heading=column_heading)
 
     st.markdown('<div id="mapa-f01" class="section-kicker">03 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
     mapped=p.dropna(subset=["latitud","longitud"])
