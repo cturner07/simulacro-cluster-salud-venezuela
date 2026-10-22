@@ -102,6 +102,19 @@ PALETTE_EXT = [
     shade(NAVY, .35), tint(ORANGE, .35), tint(SKY, .35), shade(GRAY, .3), tint(BLUE, .35),
     shade(ORANGE, .35), tint(NAVY, .35), shade(SKY, .35), tint(GRAY, .35),
 ]
+# Colores categóricos de alto contraste para el alcance territorial. Esta
+# sección tiene más acciones que tonos de la paleta institucional; se conservan
+# azul y naranja como anclas y se agregan matices distinguibles entre sí.
+TERRITORY_COLORS = [
+    "#0B3C5D", "#E36B2C", "#008D83", "#8052A5", "#819124", "#C74778",
+    "#2D9CDB", "#96512D", "#C63F3F", "#5263B5", "#28794E", "#B88500",
+    "#753B6B", "#00759D", "#B85216", "#586E80", "#30343B", "#A44691",
+]
+TERRITORY_LEGEND_SHORT = {
+    "Farmacia y dispensación de medicamentos": "Farmacia y medicamentos",
+    "Gestión y manejo de residuos hospitalarios": "Gestión de residuos hospitalarios",
+    "Sistema de Alerta Temprana y Vigilancia Epidemiológica": "Alerta temprana y vigilancia",
+}
 CALENDAR_YEAR = 2026
 # Catálogo real de "Tipo de lugar de la intervención" (XLSForm F01/F02,
 # lista `intervention_place_type`). El histórico no trae este dato, así que
@@ -983,12 +996,29 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 continue
             stacked=subset.groupby(["territorio","tipo_accion"],as_index=False).agg(puntos=("id_punto","nunique"))
             order=stacked.groupby("territorio").puntos.sum().sort_values(ascending=False).index.tolist()
+            # Un orden y un color fijo por acción: al filtrar o cambiar de
+            # Estado a Municipio, la misma acción conserva su color.
+            full_focus=d["coverage_actions"][d["coverage_actions"].foco.eq(focus_name)]
+            action_totals=(full_focus.groupby("tipo_accion").id_punto.nunique()
+                           .sort_values(ascending=False))
+            action_order=action_totals.index.tolist()
+            action_colors={name:TERRITORY_COLORS[i % len(TERRITORY_COLORS)]
+                           for i,name in enumerate(action_order)}
             fig=px.bar(stacked,x="puntos",y="territorio",color="tipo_accion",orientation="h",barmode="stack",
-                       color_discrete_sequence=PALETTE_EXT,category_orders={"territorio":order},
+                       color_discrete_map=action_colors,
+                       category_orders={"territorio":order,"tipo_accion":action_order},
                        labels={"puntos":"Puntos con el servicio o acción","territorio":"","tipo_accion":"Servicio o acción"})
-            fig.update_layout(legend=dict(orientation="h",yanchor="top",y=-.22,x=0),bargap=.3)
-            plot(fig,max(390,45*len(order)+150),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
-                 margin=dict(l=8,r=28,t=18,b=100))
+            for trace in fig.data:
+                full_name=trace.name
+                trace.name=("Otro servicio (ver detalle)" if full_name.startswith("Otro:")
+                            else TERRITORY_LEGEND_SHORT.get(full_name,full_name))
+                trace.hovertemplate=(f"<b>{html_lib.escape(full_name)}</b><br>"
+                                     "%{y}: %{x} punto(s)<extra></extra>")
+            fig.update_layout(legend=dict(orientation="h",yanchor="top",y=-.13,x=0,
+                                          entrywidth=330,entrywidthmode="pixels",
+                                          font=dict(size=13),itemsizing="constant"),bargap=.3)
+            plot(fig,max(570,47*len(order)+290),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
+                 margin=dict(l=8,r=28,t=18,b=205))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
         territorial=pd.concat(filtered_territorial,ignore_index=True)
         st.caption("Las barras están apiladas por tipo de acción. Un punto con varias acciones aparece en varios segmentos; el largo total de la barra no equivale a puntos únicos.")
