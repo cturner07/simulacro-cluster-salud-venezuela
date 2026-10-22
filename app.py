@@ -917,26 +917,8 @@ if module == RADIO_MODULE_OPTIONS[0]:
     active_public=coverage.desde.isna() | coverage.desde.le(window_end)
     active_public &= coverage.hasta.isna() | coverage.hasta.ge(window_start)
     coverage=coverage[~public_rows | active_public].copy()
-    facility_actions=sorted(coverage.loc[coverage.foco.eq("Establecimiento de salud"),"tipo_accion"].dropna().unique())
-    public_actions=sorted(coverage.loc[coverage.foco.eq("Salud pública"),"tipo_accion"].dropna().unique())
-    filter_facility,filter_public=st.columns(2)
-    with filter_facility:
-        facility_choice=st.selectbox("Servicios ofertados · establecimientos de salud",["Todos los servicios"]+facility_actions,key="map_facility_service_f01")
-    with filter_public:
-        public_choice=st.selectbox("Acciones ofertadas · salud pública",["Todas las acciones"]+public_actions,key="map_public_action_f01")
-    selected_coverage=coverage[
-        (coverage.foco.eq("Establecimiento de salud") &
-         (coverage.tipo_accion.eq(facility_choice) if facility_choice!="Todos los servicios" else True)) |
-        (coverage.foco.eq("Salud pública") &
-         (coverage.tipo_accion.eq(public_choice) if public_choice!="Todas las acciones" else True))
-    ].copy()
+    selected_coverage=coverage
     mapped=p.dropna(subset=["latitud","longitud"])
-    if facility_choice!="Todos los servicios":
-        facility_ids=set(selected_coverage.loc[selected_coverage.foco.eq("Establecimiento de salud"),"id_punto"])
-        mapped=mapped[~mapped.foco.eq("Establecimiento de salud") | mapped.id_punto.isin(facility_ids)]
-    if public_choice!="Todas las acciones":
-        public_ids=set(selected_coverage.loc[selected_coverage.foco.eq("Salud pública"),"id_punto"])
-        mapped=mapped[~mapped.foco.eq("Salud pública") | mapped.id_punto.isin(public_ids)]
     if mapped.empty: st.info("No hay coordenadas para estos filtros.")
     else:
         mapped=mapped.copy(); mapped["foco_formulario"]=mapped.foco.map({"Establecimiento de salud":"Acciones en el establecimiento de salud","Salud pública":"Acciones de salud pública"})
@@ -975,7 +957,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones del simulacro histórico. Puede explorar cada foco por separado; los filtros situados sobre el mapa también se aplican aquí.")
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Seleccione un servicio o una acción bajo el título de cada gráfico para explorar cada foco por separado.")
         territory_view=st.radio("Nivel territorial",["Estado","Municipio"],horizontal=True,key="territory_view_f01")
         territorial=selected_coverage.copy()
         territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
