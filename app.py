@@ -1312,6 +1312,58 @@ if module == RADIO_MODULE_OPTIONS[0]:
     facility_points_all=p[p.foco.eq("Establecimiento de salud")]
     facility_type_filter=st.selectbox("Filtrar por tipo de establecimiento de salud",["Todos"]+sorted(facility_points_all.tipo_punto.dropna().unique()),key="facility_type_filter")
     facility_points=facility_points_all[facility_points_all.tipo_punto.eq(facility_type_filter)] if facility_type_filter!="Todos" else facility_points_all
+    st.markdown("#### Puntos de apoyo registrados")
+    support_map_level=st.segmented_control(
+        "Nivel del análisis territorial",["Estado","Municipio"],
+        default="Estado",key="facility_support_map_level_f01",
+    )
+    if facility_points.empty:
+        st.info("No hay puntos de apoyo registrados para los filtros seleccionados.")
+    else:
+        if support_map_level=="Municipio":
+            support_geo=load_municipio_geojson()
+            support_geo_rows=pd.DataFrame([
+                {"join_key":feature["properties"]["join_key"],
+                 "nombre":feature["properties"]["adm2_name"],
+                 "estado":feature["properties"]["adm1_name"]}
+                for feature in support_geo["features"]
+            ]).drop_duplicates("join_key")
+            support_scope=facility_points.assign(join_key=facility_points.estado+" | "+facility_points.municipio)
+        else:
+            support_geo=load_estado_geojson()
+            support_geo_rows=pd.DataFrame([
+                {"join_key":feature["properties"]["join_key"],
+                 "nombre":feature["properties"]["adm1_name"],"estado":feature["properties"]["adm1_name"]}
+                for feature in support_geo["features"]
+            ]).drop_duplicates("join_key")
+            support_scope=facility_points.assign(join_key=facility_points.estado)
+        support_counts=(support_scope.groupby("join_key",as_index=False)
+                        .agg(puntos=("id_punto","nunique"),
+                             organizaciones=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+        support_map_data=support_geo_rows.merge(support_counts,on="join_key",how="left")
+        support_map_data["puntos"]=support_map_data.puntos.fillna(0).astype(int)
+        support_map_data["organizaciones"]=support_map_data.organizaciones.fillna("Ninguna")
+        support_map=px.choropleth_map(
+            support_map_data,geojson=support_geo,locations="join_key",featureidkey="properties.join_key",
+            color="puntos",color_continuous_scale=[(0,"#E4E8EC"),(.001,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
+            range_color=(0,max(1,int(support_map_data.puntos.max()))),
+            hover_name="nombre",custom_data=["estado","puntos","organizaciones"],
+            map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=.9,
+            labels={"puntos":"Puntos de apoyo"},
+        )
+        support_map.update_traces(
+            marker_line_color="white",marker_line_width=.8,
+            hovertemplate=("<b>%{hovertext}</b><br>Estado: %{customdata[0]}"
+                           "<br>Puntos de apoyo registrados: %{customdata[1]}"
+                           "<br>Organizaciones: %{customdata[2]}<extra></extra>"),
+        )
+        support_map.update_layout(coloraxis_colorbar=dict(
+            title="Puntos de apoyo",orientation="h",x=.02,y=.02,xanchor="left",yanchor="bottom",
+            len=.25,thickness=12,bgcolor="rgba(255,255,255,.96)",bordercolor=_BRAND_PALE,borderwidth=1,
+        ))
+        plot(support_map,590,"facility_support_points_map_f01",is_map=True)
+        section_figures.setdefault("Paquetes de apoyo",[]).append(support_map)
+        st.caption("La intensidad del azul representa la cantidad de puntos de apoyo registrados en cada "+support_map_level.lower()+". Las zonas sin registros se muestran en gris. La vista por parroquia no está disponible porque ese dato no consta en el registro histórico de establecimientos.")
     facility_types=facility_points.groupby("tipo_punto").id_punto.nunique().reset_index(name="puntos")
     facility_orgs=facility_points.groupby("organizacion").id_punto.nunique().reset_index(name="puntos")
 
