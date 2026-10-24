@@ -102,14 +102,15 @@ PALETTE_EXT = [
     shade(NAVY, .35), tint(ORANGE, .35), tint(SKY, .35), shade(GRAY, .3), tint(BLUE, .35),
     shade(ORANGE, .35), tint(NAVY, .35), shade(SKY, .35), tint(GRAY, .35),
 ]
-# Colores categóricos de alto contraste para el alcance territorial. Esta
-# sección tiene más acciones que tonos de la paleta institucional; se conservan
-# azul y naranja como anclas y se agregan matices distinguibles entre sí.
-TERRITORY_COLORS = [
-    "#0B3C5D", "#E36B2C", "#008D83", "#8052A5", "#819124", "#C74778",
-    "#2D9CDB", "#96512D", "#C63F3F", "#5263B5", "#28794E", "#B88500",
-    "#753B6B", "#00759D", "#B85216", "#586E80", "#30343B", "#A44691",
-]
+# Colores fijos por estado, tomados de la paleta institucional. El azul claro
+# queda para fondos: en barras sobre blanco tendría poco contraste.
+TERRITORY_COLORS = [_BRAND_NAVY, _BRAND_ORANGE, _BRAND_SKY, _BRAND_GRAY, _BRAND_BLUE]
+STATE_COLORS = {
+    "La Guaira": _BRAND_NAVY,
+    "Miranda": _BRAND_ORANGE,
+    "Distrito Capital": _BRAND_SKY,
+    "Bolívar": _BRAND_GRAY,
+}
 TERRITORY_LEGEND_SHORT = {
     "Farmacia y dispensación de medicamentos": "Farmacia y medicamentos",
     "Gestión y manejo de residuos hospitalarios": "Gestión de residuos hospitalarios",
@@ -1055,7 +1056,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             display_order=[display_name(name) for name in action_order]
             territory_order=(focus_points.groupby("territorio").id_punto.nunique()
                              .sort_values(ascending=False).index.tolist())
-            territory_colors={name:TERRITORY_COLORS[i % len(TERRITORY_COLORS)]
+            territory_colors={name:STATE_COLORS.get(name,TERRITORY_COLORS[i % len(TERRITORY_COLORS)])
                               for i,name in enumerate(territory_order)}
             stacked["porcentaje"]=stacked.puntos/base_total*100
             stacked["total_accion"]=stacked.tipo_accion.map(action_totals)
