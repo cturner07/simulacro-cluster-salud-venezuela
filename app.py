@@ -988,10 +988,9 @@ if module == RADIO_MODULE_OPTIONS[0]:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones del simulacro histórico. Seleccione un servicio o una acción bajo el título de cada gráfico para explorar cada foco por separado.")
-        territory_view=st.radio("Nivel territorial",["Estado","Municipio"],horizontal=True,key="territory_view_f01")
+        st.caption("Distribución de servicios y acciones por estado del simulacro histórico. Seleccione un servicio o una acción bajo el título de cada gráfico para explorar cada foco por separado.")
         territorial=selected_coverage.copy()
-        territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
+        territorial["territorio"]=territorial.estado
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
         for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
             focus_points=territorial[territorial.foco.eq(focus_name)]
@@ -1029,10 +1028,10 @@ if module == RADIO_MODULE_OPTIONS[0]:
                        text="etiqueta",custom_data=["puntos","total_accion","porcentaje_total"],
                        color_discrete_map=territory_colors,
                        category_orders={"tipo_accion":action_order,"territorio":territory_order},
-                       labels={"porcentaje":"Porcentaje del total de puntos","tipo_accion":"","territorio":"Territorio"})
+                       labels={"porcentaje":"Porcentaje del total de puntos","tipo_accion":"","territorio":"Estado"})
             for trace in fig.data:
-                trace.hovertemplate=("<b>%{y}</b><br>Territorio: "+html_lib.escape(trace.name)+"<br>"
-                                     "Puntos en el territorio: %{customdata[0]}<br>"
+                trace.hovertemplate=("<b>%{y}</b><br>Estado: "+html_lib.escape(trace.name)+"<br>"
+                                     "Puntos en el estado: %{customdata[0]}<br>"
                                      "Porcentaje del total: %{x:.1f}%<br>"
                                      "Total de la acción: %{customdata[1]} de "+str(base_total)+" puntos "
                                      "(%{customdata[2]:.1f}%)<extra></extra>")
@@ -1043,13 +1042,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                      textposition="middle right",textfont=dict(size=12,color=INK),
                                      showlegend=False,hoverinfo="skip"))
             fig.update_xaxes(ticksuffix="%",range=[0,max(5,float(total_percent.max())*1.12)])
-            fig.update_layout(legend=dict(orientation="h",yanchor="top",y=-.12,x=0,
+            fig.update_layout(legend=dict(orientation="h",yanchor="bottom",y=1.02,x=0,
                                           entrywidth=230,entrywidthmode="pixels",
                                           font=dict(size=12),itemsizing="constant"),bargap=.28)
             plot(fig,max(570,46*len(action_order)+270),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
-                 margin=dict(l=8,r=50,t=18,b=170))
+                 margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece esa acción, desglosado por territorio. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
+        st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
