@@ -999,12 +999,11 @@ if module == RADIO_MODULE_OPTIONS[0]:
             st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
-            level_col,partner_col=st.columns([2,1])
-            with level_col:
-                territory_level=st.radio(
-                    "Ver por",["Estado","Municipio"],horizontal=True,
-                    key=f"territory_{focus_key}_level_f01",
-                )
+            territory_level=st.radio(
+                "Ver por",["Estado","Municipio"],horizontal=True,
+                key=f"territory_{focus_key}_level_f01",
+            )
+            partner_col,action_col=st.columns(2)
             with partner_col:
                 partner_choice=st.selectbox(
                     "Socio",["Todos"]+sorted(focus_points.organizacion.dropna().unique().tolist()),
@@ -1022,12 +1021,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
             focus_points=focus_points.drop_duplicates(["territorio","tipo_accion","id_punto","organizacion"])
             subset=focus_points
             all_label="Todos los servicios" if is_facility else "Todas las acciones"
-            choice=st.selectbox(
-                "Explorar servicios ofertados" if is_facility else "Explorar acciones de salud pública",
-                [all_label]+sorted(subset.tipo_accion.dropna().unique()),
-                key="territory_facility_service_f01" if is_facility else "territory_public_action_f01",
-                format_func=(lambda name: "Otro" if is_facility and str(name).startswith("Otro:") else name),
-            )
+            with action_col:
+                choice=st.selectbox(
+                    "Explorar servicios ofertados" if is_facility else "Explorar acciones de salud pública",
+                    [all_label]+sorted(subset.tipo_accion.dropna().unique()),
+                    key="territory_facility_service_f01" if is_facility else "territory_public_action_f01",
+                    format_func=(lambda name: "Otro" if is_facility and str(name).startswith("Otro:") else name),
+                )
             if choice!=all_label:
                 subset=subset[subset.tipo_accion.eq(choice)]
             if subset.empty:
