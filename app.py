@@ -987,7 +987,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     active_public &= coverage.hasta.isna() | coverage.hasta.ge(window_start)
     coverage=coverage[~public_rows | active_public].copy()
     selected_coverage=coverage
-    st.markdown('<div id="territorio-f01" class="section-kicker">02 · Alcance territorial</div><h2>Presencia territorial</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="territorio-f01" class="section-kicker">02 · Alcance territorial</div><h2>Presencia territorial - Ofertas</h2>',unsafe_allow_html=True)
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
