@@ -995,7 +995,8 @@ if module == RADIO_MODULE_OPTIONS[0]:
         territorial["territorio"]=territorial.estado if territory_view=="Estado" else territorial.municipio+" ("+territorial.estado+")"
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
         for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
-            subset=territorial[territorial.foco.eq(focus_name)]
+            focus_points=territorial[territorial.foco.eq(focus_name)]
+            subset=focus_points
             st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
             all_label="Todos los servicios" if is_facility else "Todas las acciones"
@@ -1009,33 +1010,47 @@ if module == RADIO_MODULE_OPTIONS[0]:
             if subset.empty:
                 st.info("No hay registros de este foco con los filtros seleccionados.")
                 continue
-            stacked=subset.groupby(["territorio","tipo_accion"],as_index=False).agg(puntos=("id_punto","nunique"))
-            order=stacked.groupby("territorio").puntos.sum().sort_values(ascending=False).index.tolist()
-            # Un orden y un color fijo por acción: al filtrar o cambiar de
-            # Estado a Municipio, la misma acción conserva su color.
-            full_focus=d["coverage_actions"][d["coverage_actions"].foco.eq(focus_name)]
-            action_totals=(full_focus.groupby("tipo_accion").id_punto.nunique()
+            # Como en el gráfico de resultados F02: cada fila es una acción;
+            # sus segmentos territoriales usan el mismo denominador (todos
+            # los puntos del foco), incluso al filtrar una sola acción.
+            base_total=focus_points.id_punto.nunique()
+            stacked=subset.groupby(["tipo_accion","territorio"],as_index=False).agg(puntos=("id_punto","nunique"))
+            action_totals=(subset.groupby("tipo_accion").id_punto.nunique()
                            .sort_values(ascending=False))
             action_order=action_totals.index.tolist()
-            action_colors={name:TERRITORY_COLORS[i % len(TERRITORY_COLORS)]
-                           for i,name in enumerate(action_order)}
-            fig=px.bar(stacked,x="puntos",y="territorio",color="tipo_accion",orientation="h",barmode="stack",
-                       color_discrete_map=action_colors,
-                       category_orders={"territorio":order,"tipo_accion":action_order},
-                       labels={"puntos":"Puntos con el servicio o acción","territorio":"","tipo_accion":"Servicio o acción"})
+            territory_order=(focus_points.groupby("territorio").id_punto.nunique()
+                             .sort_values(ascending=False).index.tolist())
+            territory_colors={name:TERRITORY_COLORS[i % len(TERRITORY_COLORS)]
+                              for i,name in enumerate(territory_order)}
+            stacked["porcentaje"]=stacked.puntos/base_total*100
+            stacked["total_accion"]=stacked.tipo_accion.map(action_totals)
+            stacked["porcentaje_total"]=stacked.total_accion/base_total*100
+            stacked["etiqueta"]=stacked.porcentaje.map(lambda value:f"{value:.1f}%" if value>=3 else "")
+            fig=px.bar(stacked,x="porcentaje",y="tipo_accion",color="territorio",orientation="h",barmode="stack",
+                       text="etiqueta",custom_data=["puntos","total_accion","porcentaje_total"],
+                       color_discrete_map=territory_colors,
+                       category_orders={"tipo_accion":action_order,"territorio":territory_order},
+                       labels={"porcentaje":"Porcentaje del total de puntos","tipo_accion":"","territorio":"Territorio"})
             for trace in fig.data:
-                full_name=trace.name
-                trace.name=("Otro servicio (ver detalle)" if full_name.startswith("Otro:")
-                            else TERRITORY_LEGEND_SHORT.get(full_name,full_name))
-                trace.hovertemplate=(f"<b>{html_lib.escape(full_name)}</b><br>"
-                                     "%{y}: %{x} punto(s)<extra></extra>")
-            fig.update_layout(legend=dict(orientation="h",yanchor="top",y=-.13,x=0,
-                                          entrywidth=330,entrywidthmode="pixels",
-                                          font=dict(size=13),itemsizing="constant"),bargap=.3)
-            plot(fig,max(570,47*len(order)+290),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
-                 margin=dict(l=8,r=28,t=18,b=205))
+                trace.hovertemplate=("<b>%{y}</b><br>Territorio: "+html_lib.escape(trace.name)+"<br>"
+                                     "Puntos en el territorio: %{customdata[0]}<br>"
+                                     "Porcentaje del total: %{x:.1f}%<br>"
+                                     "Total de la acción: %{customdata[1]} de "+str(base_total)+" puntos "
+                                     "(%{customdata[2]:.1f}%)<extra></extra>")
+            fig.update_traces(textposition="inside",insidetextanchor="middle",textfont=dict(size=11))
+            total_percent=action_totals/base_total*100
+            fig.add_trace(go.Scatter(x=total_percent.tolist(),y=action_order,mode="text",
+                                     text=[f"{value:.1f}%" for value in total_percent],
+                                     textposition="middle right",textfont=dict(size=12,color=INK),
+                                     showlegend=False,hoverinfo="skip"))
+            fig.update_xaxes(ticksuffix="%",range=[0,max(5,float(total_percent.max())*1.12)])
+            fig.update_layout(legend=dict(orientation="h",yanchor="top",y=-.12,x=0,
+                                          entrywidth=230,entrywidthmode="pixels",
+                                          font=dict(size=12),itemsizing="constant"),bargap=.28)
+            plot(fig,max(570,46*len(action_order)+270),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
+                 margin=dict(l=8,r=50,t=18,b=170))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        st.caption("Las barras están apiladas por tipo de acción. Un punto con varias acciones aparece en varios segmentos; el largo total de la barra no equivale a puntos únicos.")
+        st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece esa acción, desglosado por territorio. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
