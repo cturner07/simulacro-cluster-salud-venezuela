@@ -669,14 +669,13 @@ def plot(fig: go.Figure, height: int = 420, key: str | None = None, margin: dict
     fig.update_xaxes(gridcolor=tint(GRAY,.7), zeroline=False, automargin=True, tickfont=dict(size=12))
     fig.update_yaxes(gridcolor=tint(GRAY,.7), zeroline=False, automargin=True, tickfont=dict(size=13))
     if is_map:
-        # Mapas: se deshabilita el zoom con la rueda del mouse (para que
-        # hacer scroll de la página no achique el mapa sin querer). Los
-        # íconos por defecto de Plotly son gris claro y casi no se notan
+        # La rueda del mouse permite acercar y alejar cuando el cursor está
+        # sobre el mapa. Los íconos por defecto de Plotly son gris claro y casi no se notan
         # sobre el mapa — se fuerza un fondo blanco sólido y color oscuro
         # para que se vean claramente encima de las tejas del mapa.
         fig.update_layout(modebar=dict(bgcolor="rgba(255,255,255,0.95)", color=NAVY, activecolor=RED, orientation="h"))
         map_config = {
-            "displayModeBar": True, "scrollZoom": False, "displaylogo": False,
+            "displayModeBar": True, "scrollZoom": True, "displaylogo": False,
             "modeBarButtonsToRemove": ["pan2d", "lasso2d", "select2d", "resetViewMapbox"],
         }
         st.plotly_chart(fig, width="stretch", config=map_config, key=key)
@@ -1101,7 +1100,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
         fig.for_each_trace(lambda t: t.update(name=f"{t.name} ({num(focus_counts.get(t.name,0))})"))
         plot(fig,590,"f01_map",is_map=True)
         section_figures.setdefault("Resumen territorial", []).append(fig)
-        st.caption("El color distingue el foco y el tamaño del punto representa la inversión registrada en USD. En este simulacro, los montos son ilustrativos. El zoom con la rueda del mouse está desactivado para evitar cambios accidentales al hacer scroll de la página; use los botones +/- del mapa.")
+        st.caption("El color distingue el foco y el tamaño del punto representa la inversión registrada en USD. En este simulacro, los montos son ilustrativos. Para acercar o alejar, use la rueda del mouse sobre el mapa o los botones +/−.")
 
     st.markdown(f'<div id="socios-f01" class="section-kicker">04 · Socios</div><h2>Organizaciones y su alcance · {num(p.organizacion.nunique())} socios · {num(p.id_punto.nunique())} puntos</h2>',unsafe_allow_html=True)
     st.markdown("### Principales socios por cantidad de puntos")
@@ -1676,7 +1675,7 @@ elif module.startswith("Reportes"):
         fig.for_each_trace(lambda t: t.update(name=f"{t.name} ({num(focus_counts.get(t.name,0))})"))
     plot(fig,590,"f02_map",is_map=True)
     section_figures.setdefault("Resumen territorial", []).append(fig)
-    st.caption("Este mapa muestra exclusivamente puntos que presentaron actividad en F02; no representa todo el universo registrado en F01. El zoom con la rueda del mouse está desactivado para evitar cambios accidentales al hacer scroll de la página; use los botones +/- del mapa.")
+    st.caption("Este mapa muestra exclusivamente puntos que presentaron actividad en F02; no representa todo el universo registrado en F01. Para acercar o alejar, use la rueda del mouse sobre el mapa o los botones +/−.")
 
     st.markdown('<div id="reportantes-f02" class="section-rule"></div><div class="section-kicker">02 · Organizaciones que reportaron</div>',unsafe_allow_html=True)
     st.markdown("### Organizaciones que reportaron y puntos de intervención")
