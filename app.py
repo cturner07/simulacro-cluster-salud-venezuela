@@ -992,7 +992,10 @@ if module == RADIO_MODULE_OPTIONS[0]:
         territorial=selected_coverage.copy()
         territorial["territorio"]=territorial.estado
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
-        for focus_name,heading in [("Establecimiento de salud","Servicios ofertados"),("Salud pública","Acciones ofertadas")]:
+        for focus_name,heading in [
+            ("Establecimiento de salud","Áreas o servicios del establecimiento de salud que reciben apoyo"),
+            ("Salud pública","Áreas temáticas en las que la organización realiza acciones de salud pública"),
+        ]:
             focus_points=territorial[territorial.foco.eq(focus_name)]
             st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
