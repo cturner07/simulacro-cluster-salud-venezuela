@@ -1025,6 +1025,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 "Explorar servicios ofertados" if is_facility else "Explorar acciones de salud pública",
                 [all_label]+sorted(subset.tipo_accion.dropna().unique()),
                 key="territory_facility_service_f01" if is_facility else "territory_public_action_f01",
+                format_func=(lambda name: "Otro" if is_facility and str(name).startswith("Otro:") else name),
             )
             if choice!=all_label:
                 subset=subset[subset.tipo_accion.eq(choice)]
@@ -1039,6 +1040,16 @@ if module == RADIO_MODULE_OPTIONS[0]:
             action_totals=(subset.groupby("tipo_accion").id_punto.nunique()
                            .sort_values(ascending=False))
             action_order=action_totals.index.tolist()
+            if is_facility:
+                # Conservar el detalle original en los datos; simplificar solo
+                # la etiqueta visible y situar «Otro» después de Odontología.
+                other_actions=[name for name in action_order if str(name).startswith("Otro:")]
+                action_order=[name for name in action_order if name not in other_actions]
+                if other_actions:
+                    insert_at=action_order.index("Odontología")+1 if "Odontología" in action_order else len(action_order)
+                    action_order[insert_at:insert_at]=other_actions
+            display_name=lambda name: "Otro" if is_facility and str(name).startswith("Otro:") else name
+            display_order=[display_name(name) for name in action_order]
             territory_order=(focus_points.groupby("territorio").id_punto.nunique()
                              .sort_values(ascending=False).index.tolist())
             territory_colors={name:TERRITORY_COLORS[i % len(TERRITORY_COLORS)]
@@ -1047,11 +1058,12 @@ if module == RADIO_MODULE_OPTIONS[0]:
             stacked["total_accion"]=stacked.tipo_accion.map(action_totals)
             stacked["porcentaje_total"]=stacked.total_accion/base_total*100
             stacked["etiqueta"]=stacked.porcentaje.map(lambda value:f"{value:.1f}%" if value>=3 else "")
-            fig=px.bar(stacked,x="porcentaje",y="tipo_accion",color="territorio",orientation="h",barmode="stack",
+            stacked["accion_visible"]=stacked.tipo_accion.map(display_name)
+            fig=px.bar(stacked,x="porcentaje",y="accion_visible",color="territorio",orientation="h",barmode="stack",
                        text="etiqueta",custom_data=["puntos","total_accion","porcentaje_total"],
                        color_discrete_map=territory_colors,
-                       category_orders={"tipo_accion":action_order,"territorio":territory_order},
-                       labels={"porcentaje":"Porcentaje del total de puntos","tipo_accion":"","territorio":"Estado"})
+                       category_orders={"accion_visible":display_order,"territorio":territory_order},
+                       labels={"porcentaje":"Porcentaje del total de puntos","accion_visible":"","territorio":"Estado"})
             for trace in fig.data:
                 trace.hovertemplate=("<b>%{y}</b><br>Estado: "+html_lib.escape(trace.name)+"<br>"
                                      "Puntos en el estado: %{customdata[0]}<br>"
@@ -1060,8 +1072,8 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                      "(%{customdata[2]:.1f}%)<extra></extra>")
             fig.update_traces(textposition="inside",insidetextanchor="middle",textfont=dict(size=11))
             total_percent=action_totals/base_total*100
-            fig.add_trace(go.Scatter(x=total_percent.tolist(),y=action_order,mode="text",
-                                     text=[f"{value:.1f}%" for value in total_percent],
+            fig.add_trace(go.Scatter(x=total_percent.reindex(action_order).tolist(),y=display_order,mode="text",
+                                     text=[f"{value:.1f}%" for value in total_percent.reindex(action_order)],
                                      textposition="middle right",textfont=dict(size=12,color=INK),
                                      showlegend=False,hoverinfo="skip"))
             fig.update_xaxes(ticksuffix="%",range=[0,max(5,float(total_percent.max())*1.12)])
