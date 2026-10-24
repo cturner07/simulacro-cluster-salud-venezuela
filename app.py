@@ -989,40 +989,37 @@ if module == RADIO_MODULE_OPTIONS[0]:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones por estado del simulacro histórico. Seleccione un servicio o una acción bajo el título de cada gráfico para explorar cada foco por separado.")
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Elija ver cada gráfico por estado o municipio y explore cada foco por separado.")
         territorial=selected_coverage.copy()
-        territorial["territorio"]=territorial.estado
-        territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
         for focus_name,heading in [
             ("Establecimiento de salud","Áreas o servicios del establecimiento de salud que reciben apoyo"),
             ("Salud pública","Áreas temáticas en las que la organización realiza acciones de salud pública"),
         ]:
-            focus_points=territorial[territorial.foco.eq(focus_name)]
+            focus_points=territorial[territorial.foco.eq(focus_name)].copy()
             st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
-            state_col,municipality_col,partner_col=st.columns(3)
-            with state_col:
-                state_choice=st.selectbox(
-                    "Estado",["Todos"]+sorted(focus_points.estado.dropna().unique().tolist()),
-                    key=f"territory_{focus_key}_state_f01",
+            level_col,partner_col=st.columns([2,1])
+            with level_col:
+                territory_level=st.radio(
+                    "Ver por",["Estado","Municipio"],horizontal=True,
+                    key=f"territory_{focus_key}_level_f01",
                 )
-            if state_choice!="Todos":
-                focus_points=focus_points[focus_points.estado.eq(state_choice)]
-            with municipality_col:
-                municipality_choice=st.selectbox(
-                    "Municipio",["Todos"]+sorted(focus_points.municipio.dropna().unique().tolist()),
-                    key=f"territory_{focus_key}_municipality_f01",
-                )
-            if municipality_choice!="Todos":
-                focus_points=focus_points[focus_points.municipio.eq(municipality_choice)]
             with partner_col:
                 partner_choice=st.selectbox(
                     "Socio",["Todos"]+sorted(focus_points.organizacion.dropna().unique().tolist()),
                     key=f"territory_{focus_key}_partner_f01",
                 )
+            if territory_level=="Estado":
+                focus_points["territorio"]=focus_points.estado
+                municipality_colors={}
+            else:
+                focus_points["territorio"]=focus_points.municipio+" ("+focus_points.estado+")"
+                municipality_colors={name:PALETTE_EXT[i % len(PALETTE_EXT)]
+                                     for i,name in enumerate(sorted(focus_points.territorio.dropna().unique()))}
             if partner_choice!="Todos":
-                focus_points=focus_points[focus_points.organizacion.eq(partner_choice)]
+                focus_points=focus_points[focus_points.organizacion.eq(partner_choice)].copy()
+            focus_points=focus_points.drop_duplicates(["territorio","tipo_accion","id_punto","organizacion"])
             subset=focus_points
             all_label="Todos los servicios" if is_facility else "Todas las acciones"
             choice=st.selectbox(
@@ -1037,8 +1034,8 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 st.info("No hay registros de este foco con los filtros seleccionados.")
                 continue
             # Cada fila es un servicio o una acción. El denominador usa los
-            # puntos del foco con Estado, Municipio y Socio aplicados, pero
-            # no cambia al seleccionar un único servicio o acción.
+            # puntos del foco con Socio aplicado, pero no cambia al alternar
+            # Estado/Municipio ni al seleccionar un único servicio o acción.
             base_total=focus_points.id_punto.nunique()
             stacked=subset.groupby(["tipo_accion","territorio"],as_index=False).agg(puntos=("id_punto","nunique"))
             action_totals=(subset.groupby("tipo_accion").id_punto.nunique()
@@ -1056,7 +1053,8 @@ if module == RADIO_MODULE_OPTIONS[0]:
             display_order=[display_name(name) for name in action_order]
             territory_order=(focus_points.groupby("territorio").id_punto.nunique()
                              .sort_values(ascending=False).index.tolist())
-            territory_colors={name:STATE_COLORS.get(name,TERRITORY_COLORS[i % len(TERRITORY_COLORS)])
+            territory_colors={name:(STATE_COLORS.get(name,TERRITORY_COLORS[i % len(TERRITORY_COLORS)])
+                                    if territory_level=="Estado" else municipality_colors[name])
                               for i,name in enumerate(territory_order)}
             stacked["porcentaje"]=stacked.puntos/base_total*100
             stacked["total_accion"]=stacked.tipo_accion.map(action_totals)
@@ -1067,10 +1065,10 @@ if module == RADIO_MODULE_OPTIONS[0]:
                        text="etiqueta",custom_data=["puntos","total_accion","porcentaje_total"],
                        color_discrete_map=territory_colors,
                        category_orders={"accion_visible":display_order,"territorio":territory_order},
-                       labels={"porcentaje":"Porcentaje del total de puntos","accion_visible":"","territorio":"Estado"})
+                       labels={"porcentaje":"Porcentaje del total de puntos","accion_visible":"","territorio":territory_level})
             for trace in fig.data:
-                trace.hovertemplate=("<b>%{y}</b><br>Estado: "+html_lib.escape(trace.name)+"<br>"
-                                     "Puntos en el estado: %{customdata[0]}<br>"
+                trace.hovertemplate=("<b>%{y}</b><br>"+territory_level+": "+html_lib.escape(trace.name)+"<br>"
+                                     "Puntos en "+("el estado" if territory_level=="Estado" else "el municipio")+": %{customdata[0]}<br>"
                                      "Porcentaje del total: %{x:.1f}%<br>"
                                      "Total de la acción: %{customdata[1]} de "+str(base_total)+" puntos "
                                      "(%{customdata[2]:.1f}%)<extra></extra>")
@@ -1087,7 +1085,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
+        st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio según la vista elegida. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
