@@ -992,11 +992,34 @@ if module == RADIO_MODULE_OPTIONS[0]:
         territorial=selected_coverage.copy()
         territorial["territorio"]=territorial.estado
         territorial=territorial.drop_duplicates(["foco","territorio","tipo_accion","id_punto","organizacion"])
-        for focus_name,heading in [("Establecimiento de salud","Servicios en establecimientos de salud"),("Salud pública","Acciones de salud pública")]:
+        for focus_name,heading in [("Establecimiento de salud","Servicios ofertados"),("Salud pública","Acciones ofertadas")]:
             focus_points=territorial[territorial.foco.eq(focus_name)]
-            subset=focus_points
             st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
+            focus_key="facility" if is_facility else "public"
+            state_col,municipality_col,partner_col=st.columns(3)
+            with state_col:
+                state_choice=st.selectbox(
+                    "Estado",["Todos"]+sorted(focus_points.estado.dropna().unique().tolist()),
+                    key=f"territory_{focus_key}_state_f01",
+                )
+            if state_choice!="Todos":
+                focus_points=focus_points[focus_points.estado.eq(state_choice)]
+            with municipality_col:
+                municipality_choice=st.selectbox(
+                    "Municipio",["Todos"]+sorted(focus_points.municipio.dropna().unique().tolist()),
+                    key=f"territory_{focus_key}_municipality_f01",
+                )
+            if municipality_choice!="Todos":
+                focus_points=focus_points[focus_points.municipio.eq(municipality_choice)]
+            with partner_col:
+                partner_choice=st.selectbox(
+                    "Socio",["Todos"]+sorted(focus_points.organizacion.dropna().unique().tolist()),
+                    key=f"territory_{focus_key}_partner_f01",
+                )
+            if partner_choice!="Todos":
+                focus_points=focus_points[focus_points.organizacion.eq(partner_choice)]
+            subset=focus_points
             all_label="Todos los servicios" if is_facility else "Todas las acciones"
             choice=st.selectbox(
                 "Explorar servicios ofertados" if is_facility else "Explorar acciones de salud pública",
@@ -1008,9 +1031,9 @@ if module == RADIO_MODULE_OPTIONS[0]:
             if subset.empty:
                 st.info("No hay registros de este foco con los filtros seleccionados.")
                 continue
-            # Como en el gráfico de resultados F02: cada fila es una acción;
-            # sus segmentos territoriales usan el mismo denominador (todos
-            # los puntos del foco), incluso al filtrar una sola acción.
+            # Cada fila es un servicio o una acción. El denominador usa los
+            # puntos del foco con Estado, Municipio y Socio aplicados, pero
+            # no cambia al seleccionar un único servicio o acción.
             base_total=focus_points.id_punto.nunique()
             stacked=subset.groupby(["tipo_accion","territorio"],as_index=False).agg(puntos=("id_punto","nunique"))
             action_totals=(subset.groupby("tipo_accion").id_punto.nunique()
@@ -1045,7 +1068,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             fig.update_layout(legend=dict(orientation="h",yanchor="bottom",y=1.02,x=0,
                                           entrywidth=230,entrywidthmode="pixels",
                                           font=dict(size=12),itemsizing="constant"),bargap=.28)
-            plot(fig,max(570,46*len(action_order)+270),f"territory_{'facility' if focus_name=='Establecimiento de salud' else 'public'}_f01",
+            plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
         st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
