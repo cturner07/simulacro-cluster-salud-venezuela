@@ -991,7 +991,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones del simulacro histórico. Elija ver cada gráfico por estado o municipio y explore cada foco por separado.")
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Elija gráfico o mapa, consulte por estado o municipio y explore cada foco por separado.")
         territorial=selected_coverage.copy()
         for focus_name,heading in [
             ("Establecimiento de salud","Áreas o servicios del establecimiento de salud que reciben apoyo"),
@@ -1001,10 +1001,17 @@ if module == RADIO_MODULE_OPTIONS[0]:
             st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
-            territory_level=st.radio(
-                "Ver por",["Estado","Municipio"],horizontal=True,
-                key=f"territory_{focus_key}_level_f01",
-            )
+            level_col,view_col=st.columns(2)
+            with level_col:
+                territory_level=st.radio(
+                    "Ver por",["Estado","Municipio"],horizontal=True,
+                    key=f"territory_{focus_key}_level_f01",
+                )
+            with view_col:
+                territory_view=st.radio(
+                    "Visualización",["Gráfico","Mapa"],horizontal=True,
+                    key=f"territory_{focus_key}_view_f01",
+                )
             partner_col,action_col=st.columns(2)
             with partner_col:
                 partner_choice=st.selectbox(
@@ -1039,6 +1046,65 @@ if module == RADIO_MODULE_OPTIONS[0]:
             # puntos del foco con Socio aplicado, pero no cambia al alternar
             # Estado/Municipio ni al seleccionar un único servicio o acción.
             base_total=focus_points.id_punto.nunique()
+            if territory_view=="Mapa":
+                if territory_level=="Estado":
+                    geo=load_estado_geojson()
+                    focus_keys=set(focus_points.estado.dropna())
+                    map_rows=(subset.groupby("estado",as_index=False)
+                              .agg(puntos=("id_punto","nunique"),
+                                   socios=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+                    map_rows=map_rows.rename(columns={"estado":"join_key"})
+                    geo_rows=pd.DataFrame([
+                        {"join_key":feature["properties"]["join_key"],
+                         "nombre":feature["properties"]["adm1_name"]}
+                        for feature in geo["features"] if feature["properties"]["join_key"] in focus_keys
+                    ])
+                else:
+                    geo=load_municipio_geojson()
+                    focus_keys=set(focus_points.estado+" | "+focus_points.municipio)
+                    map_subset=subset.assign(join_key=subset.estado+" | "+subset.municipio)
+                    map_rows=(map_subset.groupby("join_key",as_index=False)
+                              .agg(puntos=("id_punto","nunique"),
+                                   socios=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+                    geo_rows=pd.DataFrame([
+                        {"join_key":feature["properties"]["join_key"],
+                         "nombre":feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
+                        for feature in geo["features"] if feature["properties"]["join_key"] in focus_keys
+                    ])
+                if geo_rows.empty:
+                    st.info("No hay límites geográficos disponibles para esta selección.")
+                    continue
+                map_data=geo_rows.merge(map_rows,on="join_key",how="left")
+                map_data["puntos"]=map_data.puntos.fillna(0).astype(int)
+                map_data["socios"]=map_data.socios.fillna("Sin oferta seleccionada")
+                map_data["porcentaje"]=map_data.puntos/base_total*100
+                fig=px.choropleth_map(
+                    map_data,geojson=geo,locations="join_key",featureidkey="properties.join_key",
+                    color="porcentaje",color_continuous_scale=[_BRAND_PALE,_BRAND_SKY,_BRAND_BLUE,_BRAND_NAVY],
+                    range_color=(0,max(5,float(map_data.porcentaje.max()))),
+                    hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
+                    map_style="carto-positron",opacity=.85,
+                    labels={"porcentaje":"% del total de puntos"},
+                )
+                fig.update_traces(
+                    marker_line_color="white",marker_line_width=1.2,
+                    hovertemplate=("<b>%{hovertext}</b><br>Puntos que ofertan la selección: %{customdata[0]} de "
+                                   +str(base_total)+"<br>Porcentaje del total: %{customdata[2]:.1f}%"
+                                   "<br>Socios: %{customdata[1]}<extra></extra>"),
+                )
+                bounds=geojson_lat_lon_bounds(geo,focus_keys)
+                if bounds:
+                    lat_lo,lat_hi,lon_lo,lon_hi=bounds
+                    lat_pad=max(.15,(lat_hi-lat_lo)*.3); lon_pad=max(.15,(lon_hi-lon_lo)*.3)
+                    fig.update_layout(map=dict(bounds=dict(
+                        west=max(-180,lon_lo-lon_pad),east=min(180,lon_hi+lon_pad),
+                        south=max(-90,lat_lo-lat_pad),north=min(90,lat_hi+lat_pad),
+                    )))
+                fig.update_layout(coloraxis_colorbar=dict(title="% de puntos"))
+                plot(fig,540,f"territory_{focus_key}_offer_map_f01",is_map=True)
+                section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
+                st.caption("La intensidad del color representa el porcentaje de puntos del foco que ofrecen la selección en cada "+territory_level.lower()+". Pase el cursor sobre el mapa para ver el número de puntos y los socios.")
+                continue
             stacked=subset.groupby(["tipo_accion","territorio"],as_index=False).agg(puntos=("id_punto","nunique"))
             action_totals=(subset.groupby("tipo_accion").id_punto.nunique()
                            .sort_values(ascending=False))
@@ -1087,7 +1153,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        st.caption("Cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio según la vista elegida. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones y aparecer en varias barras.")
+        st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra la misma selección por zona. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
