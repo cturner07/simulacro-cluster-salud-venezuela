@@ -967,7 +967,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     f01_report_dates=pd.concat([pd.to_datetime(d["facilities"].fecha_reporte,errors="coerce"),pd.to_datetime(d["reports_prepared"].fecha_reporte,errors="coerce")]).dropna()
     first_f01=f01_report_dates.min().strftime("%d/%m/%Y"); last_f01=f01_report_dates.max().strftime("%d/%m/%Y")
     section_band("SOCIOS Y APOYOS DEL CLÚSTER SALUD", "¿Quiénes son los socios, qué ofrecen, a qué establecimientos de salud apoyan y qué acciones de salud pública realizan?")
-    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#panorama-f01">01 · Panorama</a><a href="#territorio-f01">02 · Alcance territorial</a><a href="#mapa-f01">03 · Mapa</a><a href="#socios-f01">04 · Socios</a><a href="#apoyos-establecimientos-f01">05 · Apoyo a establecimientos de salud</a><a href="#acciones-publicas-f01">06 · Acciones de salud pública</a><a href="#capacidad-f01">07 · Capacidad operativa</a><a href="#inversion-f01">08 · Inversión</a></div>',unsafe_allow_html=True)
+    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#panorama-f01">01 · Panorama de la oferta vigente</a><a href="#territorio-f01">02 · Alcance territorial</a><a href="#mapa-f01">03 · Mapa</a><a href="#socios-f01">04 · Socios</a><a href="#apoyos-establecimientos-f01">05 · Apoyo a establecimientos de salud</a><a href="#acciones-publicas-f01">06 · Acciones de salud pública</a><a href="#capacidad-f01">07 · Capacidad operativa</a><a href="#inversion-f01">08 · Inversión</a></div>',unsafe_allow_html=True)
     professional_total=pd.to_numeric(staffing[all_staff_cols].stack(),errors="coerce").sum()
     parish_count=p.loc[p.parroquia.ne("No reportada"),"parroquia"].nunique()
     cards=[
@@ -979,7 +979,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
         ("Total profesionales reportados",num(professional_total),""),
         ("Inversión registrada",f'{num(p.inversion_usd.sum())}<br><span style="font-size:.5em;color:{MUTED};">USD</span>',""),
     ]
-    st.markdown('<div id="panorama-f01" class="section-kicker">01 · Panorama general</div><h3>Oferta registrada</h3>',unsafe_allow_html=True)
+    st.markdown('<div id="panorama-f01" class="section-kicker">01 · Panorama de la oferta vigente</div>',unsafe_allow_html=True)
     st.markdown('<div class="metric-row" style="grid-template-columns:repeat(7,1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
     coverage=filt(d["coverage_actions"],True)
     public_rows=coverage.foco.eq("Salud pública")
