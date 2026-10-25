@@ -793,14 +793,14 @@ st.markdown(f"""
   .sidebar-update a::after{{content:" ↗";}}
   .sidebar-update a:hover{{background:{NAVY}}}
   /* Controles de filtros: contraste uniforme en F01, F02 y la barra lateral. */
-  .stApp [data-baseweb="select"]{{background:{PALE}!important;border:2px solid {NAVY}!important;border-radius:9px!important;box-shadow:0 1px 3px {NAVY}20!important}}
-  .stApp [data-baseweb="select"] > div{{background:{PALE}!important;border:0!important;border-radius:7px!important}}
-  .stApp [data-baseweb="select"]:focus-within{{border-color:{BLUE}!important;box-shadow:0 0 0 3px {SKY}55!important}}
-  .stApp [data-baseweb="select"] svg{{color:{NAVY}!important;fill:{NAVY}!important;width:19px!important;height:19px!important}}
+  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"],.stApp [data-testid="stMultiSelect"] [role="group"],.stApp [data-baseweb="select"]{{background:{PALE}!important;border:2px solid {NAVY}!important;border-radius:9px!important;box-shadow:0 1px 3px {NAVY}20!important}}
+  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"]:focus-within,.stApp [data-testid="stMultiSelect"] [role="group"]:focus-within,.stApp [data-baseweb="select"]:focus-within{{border-color:{BLUE}!important;box-shadow:0 0 0 3px {SKY}55!important}}
+  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox input,.stApp [data-testid="stSelectbox"] .react-aria-ComboBox button{{background:transparent!important;color:{NAVY}!important}}
+  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox button svg,.stApp [data-baseweb="select"] svg{{color:{NAVY}!important;fill:{NAVY}!important;width:20px!important;height:20px!important}}
   .stApp [data-testid="stDateInput"] [data-baseweb="input"],.stApp [data-testid="stTextInput"] [data-baseweb="input"],.stApp [data-testid="stNumberInput"] [data-baseweb="input"]{{background:{PALE}!important;border:2px solid {NAVY}!important;border-radius:9px!important}}
   .stApp [data-testid="stDateInput"] input,.stApp [data-testid="stTextInput"] input,.stApp [data-testid="stNumberInput"] input{{background:transparent!important;color:{INK}!important}}
-  .stApp [data-testid="stRadio"] [role="radiogroup"] > label{{background:{PALE};border:1.5px solid {GRAY};border-radius:8px;padding:6px 11px;margin-right:6px;cursor:pointer}}
-  .stApp [data-testid="stRadio"] [role="radiogroup"] > label:has(input:checked){{background:{tint(SKY,.72)};border-color:{BLUE};box-shadow:inset 0 0 0 1px {BLUE}}}
+  .stApp [data-testid="stRadioOption"]{{background:{PALE}!important;border:1.5px solid {GRAY}!important;border-radius:8px!important;padding:6px 11px!important;margin-right:6px!important;cursor:pointer}}
+  .stApp [data-testid="stRadioOption"][data-selected="true"]{{background:{tint(SKY,.72)}!important;border-color:{BLUE}!important;box-shadow:inset 0 0 0 1px {BLUE}!important}}
   .stApp [data-testid="stSegmentedControl"] button{{border:1.5px solid {NAVY}!important;background:{PALE}!important;color:{NAVY}!important;font-weight:700!important}}
   .stApp [data-testid="stSegmentedControl"] button[aria-pressed="true"]{{background:{BLUE}!important;color:white!important}}
   .st-key-territory_facility_service_f01,.st-key-territory_public_action_f01{{max-width:340px}}
