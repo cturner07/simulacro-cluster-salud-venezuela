@@ -1125,7 +1125,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-            if not is_facility:
+            if is_facility:
                 st.markdown("### Tipo de apoyo proporcionado")
                 fsup=filt(d["facility_supports_joined"])
                 ftsup=fsup.tipo_apoyo.value_counts().head(10).reset_index()
