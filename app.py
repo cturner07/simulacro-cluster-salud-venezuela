@@ -1308,11 +1308,10 @@ if module == RADIO_MODULE_OPTIONS[0]:
     # establecimiento de salud que reciben apoyo" y 5.2 "tipo(s) de apoyo que
     # serán proporcionados"). El formulario nunca usa la palabra "oferta"
     # para esto — usa "apoyo".
-    st.markdown('<div id="apoyos-establecimientos-f01" class="section-kicker">05 · Apoyos a establecimientos de salud</div><h2>Servicios y apoyos que las organizaciones brindan</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="apoyos-establecimientos-f01" class="section-kicker">05 · Apoyos a establecimientos de salud</div><h2>Puntos de apoyo registrados</h2>',unsafe_allow_html=True)
     facility_points_all=p[p.foco.eq("Establecimiento de salud")]
     facility_type_filter=st.selectbox("Filtrar por tipo de establecimiento de salud",["Todos"]+sorted(facility_points_all.tipo_punto.dropna().unique()),key="facility_type_filter")
     facility_points=facility_points_all[facility_points_all.tipo_punto.eq(facility_type_filter)] if facility_type_filter!="Todos" else facility_points_all
-    st.markdown("#### Puntos de apoyo registrados")
     support_map_level=st.segmented_control(
         "Nivel del análisis territorial",["Estado","Municipio"],
         default="Estado",key="facility_support_map_level_f01",
@@ -1364,6 +1363,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
         plot(support_map,590,"facility_support_points_map_f01",is_map=True)
         section_figures.setdefault("Paquetes de apoyo",[]).append(support_map)
         st.caption("La intensidad del azul representa la cantidad de puntos de apoyo registrados en cada "+support_map_level.lower()+". Las zonas sin registros se muestran en gris. La vista por parroquia no está disponible porque ese dato no consta en el registro histórico de establecimientos.")
+    st.markdown("<h2>Servicios y apoyos que las organizaciones brindan</h2>",unsafe_allow_html=True)
     facility_types=facility_points.groupby("tipo_punto").id_punto.nunique().reset_index(name="puntos")
     facility_orgs=facility_points.groupby("organizacion").id_punto.nunique().reset_index(name="puntos")
 
