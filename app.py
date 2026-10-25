@@ -991,7 +991,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones del simulacro histórico. Consulte por estado o municipio y explore cada foco por separado.")
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Consulte los totales por estado o municipio, o seleccione Parroquia para ver los puntos georreferenciados.")
         territorial=selected_coverage.copy()
         for focus_name,heading in [
             ("Establecimiento de salud","Áreas o servicios del establecimiento de salud que reciben apoyo"),
@@ -1001,10 +1001,11 @@ if module == RADIO_MODULE_OPTIONS[0]:
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
             st.markdown("### Puntos de apoyo registrados" if is_facility else "### Puntos de acciones de salud pública registrados")
-            territory_level=st.radio(
-                "Nivel del análisis territorial",["Estado","Municipio"],horizontal=True,
+            map_level=st.radio(
+                "Nivel del análisis territorial",["Estado","Municipio","Parroquia"],horizontal=True,
                 key=f"territory_{focus_key}_level_f01",
             )
+            territory_level="Municipio" if map_level=="Parroquia" else map_level
             partner_col,action_col=st.columns(2)
             with partner_col:
                 partner_choice=st.selectbox(
@@ -1040,55 +1041,81 @@ if module == RADIO_MODULE_OPTIONS[0]:
             # Estado/Municipio ni al seleccionar un único servicio o acción.
             base_total=focus_points.id_punto.nunique()
             with st.container(border=True):
-                if territory_level=="Estado":
-                    geo=load_estado_geojson()
-                    focus_keys=set(focus_points.estado.dropna())
-                    map_rows=(subset.groupby("estado",as_index=False)
-                              .agg(puntos=("id_punto","nunique"),
-                                   socios=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
-                    map_rows=map_rows.rename(columns={"estado":"join_key"})
-                    geo_rows=pd.DataFrame([
-                        {"join_key":feature["properties"]["join_key"],
-                         "nombre":feature["properties"]["adm1_name"]}
-                        for feature in geo["features"]
-                    ])
+                if map_level=="Parroquia":
+                    selected_ids=set(subset.id_punto)
+                    mapped_points=p[p.id_punto.isin(selected_ids) & p.foco.eq(focus_name)].copy()
+                    mapped_points=mapped_points.dropna(subset=["latitud","longitud"])
+                    mapped_points=mapped_points[
+                        mapped_points.latitud.between(-2,14) & mapped_points.longitud.between(-76,-58)
+                    ].drop_duplicates("id_punto")
+                    if mapped_points.empty:
+                        st.info("No hay coordenadas válidas para los puntos de esta selección.")
+                    else:
+                        mapped_points["parroquia_visible"]=mapped_points.parroquia.fillna("No reportada")
+                        fig=px.scatter_map(
+                            mapped_points,lat="latitud",lon="longitud",hover_name="lugar",
+                            custom_data=["parroquia_visible","municipio","estado","organizacion"],
+                            map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,
+                        )
+                        fig.update_traces(
+                            marker=dict(size=12,color=_BRAND_BLUE,opacity=.9),
+                            hovertemplate=("<b>%{hovertext}</b><br>Parroquia: %{customdata[0]}"
+                                           "<br>Municipio: %{customdata[1]}<br>Estado: %{customdata[2]}"
+                                           "<br>Socio: %{customdata[3]}<extra></extra>"),
+                        )
+                        plot(fig,540,f"territory_{focus_key}_parish_points_f01",is_map=True)
+                        section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
+                        st.caption(f"Se muestran {mapped_points.id_punto.nunique()} puntos georreferenciados de la selección. Cuando el registro histórico no identifica la parroquia, el punto aparece en su coordenada y se indica «No reportada» al pasar el cursor.")
                 else:
-                    geo=load_municipio_geojson()
-                    focus_keys=set(focus_points.estado+" | "+focus_points.municipio)
-                    map_subset=subset.assign(join_key=subset.estado+" | "+subset.municipio)
-                    map_rows=(map_subset.groupby("join_key",as_index=False)
-                              .agg(puntos=("id_punto","nunique"),
-                                   socios=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
-                    geo_rows=pd.DataFrame([
-                        {"join_key":feature["properties"]["join_key"],
-                         "nombre":feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
-                        for feature in geo["features"]
-                    ])
-                if geo_rows.empty:
-                    st.info("No hay límites geográficos disponibles para esta selección.")
-                    continue
-                map_data=geo_rows.merge(map_rows,on="join_key",how="left")
-                map_data["puntos"]=map_data.puntos.fillna(0).astype(int)
-                map_data["socios"]=map_data.socios.fillna("Sin oferta seleccionada")
-                map_data["porcentaje"]=map_data.puntos/base_total*100
-                fig=px.choropleth_map(
-                    map_data,geojson=geo,locations="join_key",featureidkey="properties.join_key",
-                    color="puntos",color_continuous_scale=[(0,"#E4E8EC"),(.001,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
-                    range_color=(0,max(1,int(map_data.puntos.max()))),
-                    hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
-                    map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=.9,
-                    labels={"puntos":"Puntos registrados"},
-                )
-                fig.update_traces(
-                    marker_line_color="white",marker_line_width=1.2,
-                    hovertemplate=("<b>%{hovertext}</b><br>Puntos que ofertan la selección: %{customdata[0]} de "
-                                   +str(base_total)+"<br>Porcentaje del total: %{customdata[2]:.1f}%"
-                                   "<br>Socios: %{customdata[1]}<extra></extra>"),
-                )
-                fig.update_layout(coloraxis_colorbar=dict(title="Puntos registrados"))
-                plot(fig,540,f"territory_{focus_key}_offer_map_f01",is_map=True)
-                section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-                st.caption("La intensidad del azul representa los puntos registrados en cada "+territory_level.lower()+"; las zonas sin registros se muestran en gris. Pase el cursor para ver los puntos y socios.")
+                    if territory_level=="Estado":
+                        geo=load_estado_geojson()
+                        map_rows=(subset.groupby("estado",as_index=False)
+                                  .agg(puntos=("id_punto","nunique"),
+                                       socios=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+                        map_rows=map_rows.rename(columns={"estado":"join_key"})
+                        geo_rows=pd.DataFrame([
+                            {"join_key":feature["properties"]["join_key"],
+                             "nombre":feature["properties"]["adm1_name"]}
+                            for feature in geo["features"]
+                        ])
+                    else:
+                        geo=load_municipio_geojson()
+                        map_subset=subset.assign(join_key=subset.estado+" | "+subset.municipio)
+                        map_rows=(map_subset.groupby("join_key",as_index=False)
+                                  .agg(puntos=("id_punto","nunique"),
+                                       socios=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+                        geo_rows=pd.DataFrame([
+                            {"join_key":feature["properties"]["join_key"],
+                             "nombre":feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
+                            for feature in geo["features"]
+                        ])
+                    if geo_rows.empty:
+                        st.info("No hay límites geográficos disponibles para esta selección.")
+                        continue
+                    map_data=geo_rows.merge(map_rows,on="join_key",how="left")
+                    map_data["puntos"]=map_data.puntos.fillna(0).astype(int)
+                    map_data["socios"]=map_data.socios.fillna("Sin oferta seleccionada")
+                    map_data["porcentaje"]=map_data.puntos/base_total*100
+                    fig=px.choropleth_map(
+                        map_data,geojson=geo,locations="join_key",featureidkey="properties.join_key",
+                        color="puntos",color_continuous_scale=[(0,"#E4E8EC"),(.001,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
+                        range_color=(0,max(1,int(map_data.puntos.max()))),
+                        hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
+                        map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=.9,
+                        labels={"puntos":"Puntos registrados"},
+                    )
+                    fig.update_traces(
+                        marker_line_color="white",marker_line_width=1.2,
+                        hovertemplate=("<b>%{hovertext}</b><br>Puntos que ofertan la selección: %{customdata[0]} de "
+                                       +str(base_total)+"<br>Porcentaje del total: %{customdata[2]:.1f}%"
+                                       "<br>Socios: %{customdata[1]}<extra></extra>"),
+                    )
+                    fig.update_layout(coloraxis_colorbar=dict(title="Puntos registrados"))
+                    plot(fig,540,f"territory_{focus_key}_offer_map_f01",is_map=True)
+                    section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
+                    st.caption("La intensidad del azul representa los puntos registrados en cada "+territory_level.lower()+"; las zonas sin registros se muestran en gris. Pase el cursor para ver los puntos y socios.")
+            if map_level=="Parroquia":
+                st.caption("El gráfico de barras permanece agrupado por municipio; la opción Parroquia cambia solo el mapa a puntos georreferenciados.")
             if is_facility:
                 st.markdown("<h2>Presencia territorial - Ofertas</h2>",unsafe_allow_html=True)
             st.markdown(f"### {heading}")
@@ -1140,7 +1167,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra los puntos registrados de la misma selección por zona. El denominador de las barras es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
+        st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra los puntos registrados por zona o, en la vista Parroquia, sus ubicaciones georreferenciadas. El denominador de las barras es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
@@ -1300,11 +1327,34 @@ if module == RADIO_MODULE_OPTIONS[0]:
     facility_type_filter=st.selectbox("Filtrar por tipo de establecimiento de salud",["Todos"]+sorted(facility_points_all.tipo_punto.dropna().unique()),key="facility_type_filter")
     facility_points=facility_points_all[facility_points_all.tipo_punto.eq(facility_type_filter)] if facility_type_filter!="Todos" else facility_points_all
     support_map_level=st.segmented_control(
-        "Nivel del análisis territorial",["Estado","Municipio"],
+        "Nivel del análisis territorial",["Estado","Municipio","Parroquia"],
         default="Estado",key="facility_support_map_level_f01",
     )
     if facility_points.empty:
         st.info("No hay puntos de apoyo registrados para los filtros seleccionados.")
+    elif support_map_level=="Parroquia":
+        mapped_support=facility_points.dropna(subset=["latitud","longitud"]).copy()
+        mapped_support=mapped_support[
+            mapped_support.latitud.between(-2,14) & mapped_support.longitud.between(-76,-58)
+        ].drop_duplicates("id_punto")
+        if mapped_support.empty:
+            st.info("No hay coordenadas válidas para los puntos de apoyo seleccionados.")
+        else:
+            mapped_support["parroquia_visible"]=mapped_support.parroquia.fillna("No reportada")
+            support_map=px.scatter_map(
+                mapped_support,lat="latitud",lon="longitud",hover_name="lugar",
+                custom_data=["parroquia_visible","municipio","estado","organizacion"],
+                map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,
+            )
+            support_map.update_traces(
+                marker=dict(size=12,color=_BRAND_BLUE,opacity=.9),
+                hovertemplate=("<b>%{hovertext}</b><br>Parroquia: %{customdata[0]}"
+                               "<br>Municipio: %{customdata[1]}<br>Estado: %{customdata[2]}"
+                               "<br>Socio: %{customdata[3]}<extra></extra>"),
+            )
+            plot(support_map,590,"facility_support_parish_points_f01",is_map=True)
+            section_figures.setdefault("Paquetes de apoyo",[]).append(support_map)
+            st.caption(f"Se muestran {mapped_support.id_punto.nunique()} puntos de apoyo georreferenciados. Si la parroquia no está identificada en el registro histórico, se muestra «No reportada» al pasar el cursor; no se infiere a partir de las coordenadas.")
     else:
         if support_map_level=="Municipio":
             support_geo=load_municipio_geojson()
@@ -1349,7 +1399,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
         ))
         plot(support_map,590,"facility_support_points_map_f01",is_map=True)
         section_figures.setdefault("Paquetes de apoyo",[]).append(support_map)
-        st.caption("La intensidad del azul representa la cantidad de puntos de apoyo registrados en cada "+support_map_level.lower()+". Las zonas sin registros se muestran en gris. La vista por parroquia no está disponible porque ese dato no consta en el registro histórico de establecimientos.")
+        st.caption("La intensidad del azul representa la cantidad de puntos de apoyo registrados en cada "+support_map_level.lower()+". Las zonas sin registros se muestran en gris.")
     st.markdown("<h2>Servicios y apoyos que las organizaciones brindan</h2>",unsafe_allow_html=True)
     facility_types=facility_points.groupby("tipo_punto").id_punto.nunique().reset_index(name="puntos")
     facility_orgs=facility_points.groupby("organizacion").id_punto.nunique().reset_index(name="puntos")
