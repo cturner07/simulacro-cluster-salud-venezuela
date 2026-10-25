@@ -569,45 +569,6 @@ def support_ranking_table(ranking: pd.DataFrame, *, max_height: int = 700) -> No
     )
 
 
-def territorial_offer_table(ranking: pd.DataFrame, *, action_heading: str) -> None:
-    """Puntos distintos por acción y distrito, con organizaciones e intensidad."""
-    maximum=max(1,int(ranking.puntos.max()))
-    rows=[]
-    for row in ranking.itertuples(index=False):
-        amount=int(row.puntos)
-        relative=amount/maximum
-        width=max(3,round(relative*100))
-        intensity=math.log1p(amount)/math.log1p(maximum)
-        color=tint(BLUE,.75-.7*intensity)
-        district=html_lib.escape(str(row.municipio))
-        state=html_lib.escape(str(row.estado))
-        organization_names=tuple(row.organizaciones)
-        organizations="".join(
-            f"<span>{html_lib.escape(name)}</span>" for name in organization_names
-        ) or "<span>No reportada</span>"
-        organization_count=(f"<small>{len(organization_names)} organizaciones</small>"
-                            if len(organization_names)>1 else "")
-        rows.append(
-            "<tr>"
-            f"<td title='Estado: {state}'>{district}</td>"
-            f"<td>{html_lib.escape(str(row.tipo_accion))}</td>"
-            f"<td class='offer-organizations'>{organization_count}<div>{organizations}</div></td>"
-            "<td><div class='offer-meter'>"
-            f"<span style='width:{width}%;background:{color}'></span><b>{amount}</b>"
-            "</div></td></tr>"
-        )
-    height=min(730,64*len(rows)+52)
-    st.markdown(
-        f'<div class="offer-scale">Menor oferta <span></span> Mayor oferta</div>'
-        f'<div class="support-table-wrap" style="max-height:{height}px">'
-        f'<table class="support-table offer-table"><thead><tr>'
-        f'<th>Distrito</th><th>{html_lib.escape(action_heading)}</th>'
-        f'<th>Organizaciones</th><th>Puntos que la ofertan</th>'
-        f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>',
-        unsafe_allow_html=True,
-    )
-
-
 def complete_dashboard_export() -> None:
     """Abre la impresión del navegador para guardar toda la vista activa como PDF."""
     with st.container(key="print_export"):
@@ -764,7 +725,7 @@ st.markdown(f"""
   .logo-strip-extra{{max-width:1660px;margin:0 auto 24px;padding:14px 22px;background:white;border:1px solid {tint(GRAY,.78)};border-radius:14px;box-shadow:0 3px 12px {NAVY}12;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:16px 28px}}
   .logo-strip-extra img{{height:44px;width:auto;max-width:200px;object-fit:contain;filter:contrast(1.02)}}
   .hero{{background:linear-gradient(120deg,{NAVY},{BLUE});color:white;border-radius:16px;padding:16px 26px;margin:0 0 18px;box-shadow:0 8px 18px {NAVY}22}}
-  .hero b{{font-size:.68rem;letter-spacing:.15em}}.hero h1{{font-size:1.7rem;margin:.28rem 0 .18rem;color:white}}.hero p{{font-size:.88rem;margin:0;color:{PALE}}}
+  .hero b{{font-size:.68rem;letter-spacing:.15em}}.hero h1{{font-size:1.65rem;margin:.28rem 0 .18rem;color:white}}.hero p{{font-size:.88rem;margin:0;color:{PALE}}}
   .hero small{{display:block;margin-top:.22rem;color:{tint(SKY,.72)};font-size:.76rem}}
   .module-head{{border-left:6px solid {ORANGE};background:white;padding:14px 18px;border-radius:8px;margin:18px 0}}
   .module-head h2{{margin:0;color:{NAVY};font-size:1.55rem}}.module-head p{{margin:4px 0 0;color:{MUTED}}}
@@ -793,15 +754,15 @@ st.markdown(f"""
   .sidebar-update a::after{{content:" ↗";}}
   .sidebar-update a:hover{{background:{NAVY}}}
   /* Controles de filtros: contraste uniforme en F01, F02 y la barra lateral. */
-  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"],.stApp [data-testid="stMultiSelect"] [role="group"],.stApp [data-baseweb="select"]{{background:{PALE}!important;border:2px solid {NAVY}!important;border-radius:9px!important;box-shadow:0 1px 3px {NAVY}20!important}}
-  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"]:focus-within,.stApp [data-testid="stMultiSelect"] [role="group"]:focus-within,.stApp [data-baseweb="select"]:focus-within{{border-color:{BLUE}!important;box-shadow:0 0 0 3px {SKY}55!important}}
+  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"],.stApp [data-testid="stMultiSelect"] [role="group"],.stApp [data-baseweb="select"]{{background:{PALE}!important;border:1px solid {NAVY}!important;border-radius:8px!important;box-shadow:none!important}}
+  .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"]:focus-within,.stApp [data-testid="stMultiSelect"] [role="group"]:focus-within,.stApp [data-baseweb="select"]:focus-within{{border-color:{BLUE}!important;box-shadow:0 0 0 2px {SKY}55!important}}
   .stApp [data-testid="stSelectbox"] .react-aria-ComboBox input,.stApp [data-testid="stSelectbox"] .react-aria-ComboBox button{{background:transparent!important;color:{NAVY}!important}}
   .stApp [data-testid="stSelectbox"] .react-aria-ComboBox button svg,.stApp [data-baseweb="select"] svg{{color:{NAVY}!important;fill:{NAVY}!important;width:20px!important;height:20px!important}}
-  .stApp [data-testid="stDateInput"] [data-baseweb="input"],.stApp [data-testid="stTextInput"] [data-baseweb="input"],.stApp [data-testid="stNumberInput"] [data-baseweb="input"]{{background:{PALE}!important;border:2px solid {NAVY}!important;border-radius:9px!important}}
+  .stApp [data-testid="stDateInput"] [data-baseweb="input"],.stApp [data-testid="stTextInput"] [data-baseweb="input"],.stApp [data-testid="stNumberInput"] [data-baseweb="input"]{{background:{PALE}!important;border:1px solid {NAVY}!important;border-radius:8px!important}}
   .stApp [data-testid="stDateInput"] input,.stApp [data-testid="stTextInput"] input,.stApp [data-testid="stNumberInput"] input{{background:transparent!important;color:{INK}!important}}
-  .stApp [data-testid="stRadioOption"]{{background:{PALE}!important;border:1.5px solid {GRAY}!important;border-radius:8px!important;padding:6px 11px!important;margin-right:6px!important;cursor:pointer}}
-  .stApp [data-testid="stRadioOption"][data-selected="true"]{{background:{tint(SKY,.72)}!important;border-color:{BLUE}!important;box-shadow:inset 0 0 0 1px {BLUE}!important}}
-  .stApp [data-testid="stSegmentedControl"] button{{border:1.5px solid {NAVY}!important;background:{PALE}!important;color:{NAVY}!important;font-weight:700!important}}
+  .stApp [data-testid="stRadioOption"]{{background:{PALE}!important;border:1px solid {GRAY}!important;border-radius:8px!important;padding:6px 11px!important;margin-right:6px!important;cursor:pointer}}
+  .stApp [data-testid="stRadioOption"][data-selected="true"]{{background:{tint(SKY,.72)}!important;border-color:{BLUE}!important;box-shadow:none!important}}
+  .stApp [data-testid="stSegmentedControl"] button{{border:1px solid {NAVY}!important;background:{PALE}!important;color:{NAVY}!important;font-weight:700!important}}
   .stApp [data-testid="stSegmentedControl"] button[aria-pressed="true"]{{background:{BLUE}!important;color:white!important}}
   .st-key-territory_facility_service_f01,.st-key-territory_public_action_f01{{max-width:340px}}
   .st-key-territory_facility_service_f01 [data-baseweb="select"] svg,.st-key-territory_public_action_f01 [data-baseweb="select"] svg{{color:{BLUE}!important;fill:{BLUE}!important;width:22px!important;height:22px!important;stroke-width:3}}
@@ -814,10 +775,10 @@ st.markdown(f"""
   .section-rule{{border-top:1px solid {tint(GRAY,.55)};margin:24px 0 8px}}
   [data-testid="stRadio"] label p{{color:{INK}!important;font-weight:700}}
   h2,h3{{color:{NAVY}}}
-  .block-container h2{{font-size:1.9rem!important;line-height:1.23;font-weight:650}}
-  .block-container h3{{font-size:1.45rem!important;line-height:1.28;font-weight:650}}
-  .block-container h4{{font-size:1.16rem!important;line-height:1.3;font-weight:600}}
-  .block-container .module-head h2{{font-size:1.55rem!important}}
+  .block-container h2{{font-size:1.25rem!important;line-height:1.3;font-weight:600}}
+  .block-container h3{{font-size:1rem!important;line-height:1.25;font-weight:600}}
+  .block-container h4{{font-size:.95rem!important;line-height:1.3;font-weight:600}}
+  .block-container .module-head h2{{font-size:1.25rem!important}}
   .stTabs [data-baseweb="tab-list"]{{gap:1.2rem;border-bottom:1px solid {GRAY}}}
   .stTabs [aria-selected="true"]{{border-bottom:4px solid {RED}}}
   .support-table-wrap{{overflow:auto;border:1px solid {tint(GRAY,.72)};border-radius:10px;background:white}}
@@ -832,20 +793,6 @@ st.markdown(f"""
   .support-meter::before{{content:"";grid-column:1;grid-row:1;height:10px;background:{tint(GRAY,.82)};border-radius:999px}}
   .support-meter span{{grid-column:1;grid-row:1;height:10px;background:{RED};border-radius:999px;min-width:0}}
   .support-meter b{{grid-column:2;font-weight:500;color:{INK};text-align:right}}
-  .offer-table{{min-width:850px}}
-  .offer-table th,.offer-table td{{width:auto!important}}
-  .offer-table th:first-child,.offer-table td:first-child{{min-width:130px}}
-  .offer-organizations{{max-width:340px;line-height:1.45;overflow-wrap:anywhere}}
-  .offer-organizations small{{display:block;color:{MUTED};font-weight:700;margin-bottom:5px}}
-  .offer-organizations div{{display:grid;gap:4px}}
-  .offer-organizations span{{display:block;padding:3px 7px;border-radius:5px;background:{PALE}}}
-  .offer-table th:last-child,.offer-table td:last-child{{min-width:190px;width:20%!important}}
-  .offer-meter{{display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:center;position:relative}}
-  .offer-meter::before{{content:"";grid-column:1;grid-row:1;height:14px;background:{tint(GRAY,.82)};border-radius:999px}}
-  .offer-meter span{{grid-column:1;grid-row:1;height:14px;border-radius:999px;z-index:1}}
-  .offer-meter b{{grid-column:2;color:{NAVY};text-align:right}}
-  .offer-scale{{display:flex;align-items:center;gap:9px;justify-content:flex-end;color:{MUTED};font-size:.8rem;margin:6px 0}}
-  .offer-scale span{{display:inline-block;width:120px;height:12px;border-radius:999px;background:linear-gradient(90deg,{tint(BLUE,.72)},{SKY},{NAVY})}}
   @media print{{
     [data-testid="stSidebar"],header,[data-testid="stToolbar"],.stRadio,.stDownloadButton,.st-key-calendar_nav_btn,.st-key-print_export{{display:none!important}}
     .block-container{{max-width:none!important;padding:0!important}}
@@ -1179,31 +1126,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
         st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra los puntos registrados por zona o, en la vista Parroquia, sus ubicaciones georreferenciadas. El denominador de las barras es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
-
-        st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
-        st.markdown("### Oferta por territorio")
-        st.caption("Distrito corresponde al municipio registrado en F01. Cada fila muestra los puntos distintos que ofrecen el servicio o la acción; si participan varias organizaciones, aparecen todas en la misma celda, sin duplicar el total.")
-        offer_groups=["estado","municipio","tipo_accion"]
-        for focus_name, heading, label, all_label, key, column_heading in [
-            ("Establecimiento de salud", "Servicios en establecimientos de salud", "Filtrar servicio ofertado", "Todos los servicios", "offer_facility_service_f01", "Servicio ofertado"),
-            ("Salud pública", "Acciones de salud pública", "Filtrar acción ofertada", "Todas las acciones", "offer_public_action_f01", "Acción ofertada"),
-        ]:
-            with st.container(border=True):
-                st.markdown(f"#### {heading}")
-                offer_subset=selected_coverage[selected_coverage.foco.eq(focus_name)].copy()
-                options=[all_label]+sorted(offer_subset.tipo_accion.dropna().unique().tolist())
-                selected_offer=st.selectbox(label,options,key=key)
-                if selected_offer!=all_label:
-                    offer_subset=offer_subset[offer_subset.tipo_accion.eq(selected_offer)]
-                    st.caption(f"Total de puntos distintos que ofertan «{selected_offer}»: {num(offer_subset.id_punto.nunique())}.")
-                if offer_subset.empty:
-                    st.info("No hay puntos para esta selección.")
-                else:
-                    offer_ranking=(offer_subset.groupby(offer_groups,as_index=False,dropna=False)
-                                   .agg(puntos=("id_punto","nunique"),
-                                        organizaciones=("organizacion",lambda names: tuple(sorted({str(name) for name in names.dropna() if str(name).strip()}))))
-                                   .sort_values(["puntos","estado","municipio","tipo_accion"],ascending=[False,True,True,True]))
-                    territorial_offer_table(offer_ranking,action_heading=column_heading)
 
     st.markdown('<div id="mapa-f01" class="section-kicker">03 · Localización</div><h2>Mapa de intervenciones registradas</h2>',unsafe_allow_html=True)
     mapped=p.dropna(subset=["latitud","longitud"])
