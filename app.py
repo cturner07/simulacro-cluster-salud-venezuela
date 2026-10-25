@@ -1125,6 +1125,20 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
+            if not is_facility:
+                st.markdown("### Tipo de apoyo proporcionado")
+                fsup=filt(d["facility_supports_joined"])
+                ftsup=fsup.tipo_apoyo.value_counts().head(10).reset_index()
+                ftsup.columns=["tipo_apoyo","puntos"]
+                if ftsup.empty:
+                    st.info("No hay tipos de apoyo registrados para los filtros seleccionados.")
+                else:
+                    ftsup["_tilecolor"]=value_gradient_colors(ftsup.puntos,[[0,tint(ORANGE,.82)],[1,ORANGE]])
+                    support_fig=px.treemap(ftsup,path=["tipo_apoyo"],values="puntos",color="tipo_apoyo",color_discrete_map=dict(zip(ftsup.tipo_apoyo,ftsup._tilecolor)))
+                    set_value_tile_labels(support_fig,"puntos")
+                    plot(support_fig,560,"facility_supports_tree",margin=dict(l=6,r=6,t=10,b=6))
+                    section_figures.setdefault("Paquetes de apoyo", []).append(support_fig)
+                    st.caption("El tamaño de cada bloque representa los puntos de establecimientos de salud que recibieron ese tipo de apoyo.")
         st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra los puntos registrados por zona o, en la vista Parroquia, sus ubicaciones georreferenciadas. El denominador de las barras es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
 
     st.markdown(f'<div id="socios-f01" class="section-kicker">03 · Socios</div><h2>Organizaciones y su alcance · {num(p.organizacion.nunique())} socios · {num(p.id_punto.nunique())} puntos</h2>',unsafe_allow_html=True)
@@ -1247,33 +1261,18 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 section_figures.setdefault("Presencia de socios", []).append(fig)
                 st.caption("El tamaño de cada bloque representa el número de establecimientos apoyados.")
 
-    # F01 tiene dos preguntas reales distintas para este foco (5.1 áreas que
-    # reciben apoyo, 5.2 tipo de apoyo brindado, en el mismo orden que el
-    # formulario), mostradas una al lado de la otra para compararlas.
+    # Áreas o servicios que reciben apoyo en los establecimientos de salud.
     fs=filt(d["facility_services_joined"])
     ft=fs.servicio.value_counts().head(10).reset_index(); ft.columns=["servicio","puntos"]; ft["foco"]="Establecimiento de salud"
-    fsup=filt(d["facility_supports_joined"])
-    ftsup=fsup.tipo_apoyo.value_counts().head(10).reset_index(); ftsup.columns=["tipo_apoyo","puntos"]
     with st.container(border=True):
-        services_col,supports_col=st.columns(2,gap="small")
-        with services_col:
-            st.markdown("##### Áreas o servicios que reciben apoyo")
-            if ft.empty: st.info("No hay servicios registrados para los filtros seleccionados.")
-            else:
-                ft["_tilecolor"]=value_gradient_colors(ft.puntos,[[0,tint(ORANGE,.82)],[1,ORANGE]])
-                fig=px.treemap(ft,path=["servicio"],values="puntos",color="servicio",color_discrete_map=dict(zip(ft.servicio,ft._tilecolor)))
-                set_value_tile_labels(fig,"puntos"); plot(fig,560,"facility_services_tree",margin=dict(l=6,r=6,t=10,b=6))
-                section_figures.setdefault("Paquetes de apoyo", []).append(fig)
-                st.caption("El tamaño de cada bloque representa los puntos que reciben apoyo en esa área.")
-        with supports_col:
-            st.markdown("##### Tipo de apoyo proporcionado")
-            if ftsup.empty: st.info("No hay tipos de apoyo registrados para los filtros seleccionados.")
-            else:
-                ftsup["_tilecolor"]=value_gradient_colors(ftsup.puntos,[[0,tint(ORANGE,.82)],[1,ORANGE]])
-                fig=px.treemap(ftsup,path=["tipo_apoyo"],values="puntos",color="tipo_apoyo",color_discrete_map=dict(zip(ftsup.tipo_apoyo,ftsup._tilecolor)))
-                set_value_tile_labels(fig,"puntos"); plot(fig,560,"facility_supports_tree",margin=dict(l=6,r=6,t=10,b=6))
-                section_figures.setdefault("Paquetes de apoyo", []).append(fig)
-                st.caption("El tamaño de cada bloque representa los puntos que recibieron ese tipo de apoyo.")
+        st.markdown("##### Áreas o servicios que reciben apoyo")
+        if ft.empty: st.info("No hay servicios registrados para los filtros seleccionados.")
+        else:
+            ft["_tilecolor"]=value_gradient_colors(ft.puntos,[[0,tint(ORANGE,.82)],[1,ORANGE]])
+            fig=px.treemap(ft,path=["servicio"],values="puntos",color="servicio",color_discrete_map=dict(zip(ft.servicio,ft._tilecolor)))
+            set_value_tile_labels(fig,"puntos"); plot(fig,560,"facility_services_tree",margin=dict(l=6,r=6,t=10,b=6))
+            section_figures.setdefault("Paquetes de apoyo", []).append(fig)
+            st.caption("El tamaño de cada bloque representa los puntos que reciben apoyo en esa área.")
 
     # Los cuadros de arriba solo muestran totales por área/tipo de apoyo, sin
     # nombres. Aquí se lista cada establecimiento del universo filtrado con
