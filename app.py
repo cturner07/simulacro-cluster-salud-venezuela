@@ -744,7 +744,7 @@ def integer_colorbar_ticks(cmax: int, target_steps: int = 5) -> tuple[list[int],
 
 
 def metric(label: str, value: object, note: str) -> str:
-    return f'<div class="metric"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>'
+    return f'<div class="metric"><strong>{value}</strong><span>{label}</span><small>{note}</small></div>'
 
 
 def section_band(title: str, question: str = "") -> None:
@@ -772,8 +772,8 @@ st.markdown(f"""
   .section-band span{{color:{MUTED};font-weight:500;font-style:italic;font-size:.88rem;letter-spacing:0}}
   .metric-row{{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin:16px 0 26px}}
   .metric{{background:white;border:1px solid {tint(GRAY,.75)};border-top:4px solid {BLUE};padding:14px 16px;min-height:106px;text-align:center;display:flex;flex-direction:column}}
-  .metric span{{display:flex;align-items:center;justify-content:center;min-height:46px;text-transform:uppercase;font-size:.68rem;letter-spacing:.08em;color:{MUTED};font-weight:700;line-height:1.35}}
-  .metric strong{{display:block;font-size:2rem;color:{NAVY};margin:.2rem 0;flex:1}}.metric small{{color:{MUTED}}}
+  .metric span{{display:flex;align-items:center;justify-content:center;min-height:32px;text-transform:uppercase;font-size:.68rem;letter-spacing:.08em;color:{MUTED};font-weight:700;line-height:1.35}}
+  .metric strong{{display:block;font-size:2rem;color:{NAVY};margin:.2rem 0}}.metric small{{display:block;color:{MUTED};font-size:.73rem;line-height:1.3;margin-top:2px}}
   .pilot{{background:{tint(ORANGE,.88)};border:1px solid {tint(ORANGE,.45)};border-radius:8px;padding:10px 13px;color:{shade(ORANGE,.55)};font-size:.85rem}}
   .excel-dl{{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:{NAVY};background:white;border:1px solid {tint(GRAY,.68)};border-radius:8px;padding:5px 11px;font-weight:700;font-size:.83rem;line-height:1.6}}
   .excel-dl:hover{{border-color:{BLUE};color:{BLUE}}}
@@ -971,13 +971,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
     professional_total=pd.to_numeric(staffing[all_staff_cols].stack(),errors="coerce").sum()
     parish_count=p.loc[p.parroquia.ne("No reportada"),"parroquia"].nunique()
     cards=[
-        ("Estados",num(p.estado.nunique()),""),
-        ("Municipios",num(p.municipio.nunique()),""),
-        ("Parroquias",num(parish_count),""),
-        ("Socios",num(p.organizacion.nunique()),""),
-        ("Puntos de intervención",num(p.id_punto.nunique()),""),
-        ("Total profesionales reportados",num(professional_total),""),
-        ("Inversión registrada",f'{num(p.inversion_usd.sum())}<br><span style="font-size:.5em;color:{MUTED};">USD</span>',""),
+        ("Estados",num(p.estado.nunique()),"con presencia reportada"),
+        ("Municipios",num(p.municipio.nunique()),"con oferta registrada"),
+        ("Parroquias",num(parish_count),"con ubicación reportada"),
+        ("Socios",num(p.organizacion.nunique()),"organizaciones registradas"),
+        ("Puntos de intervención",num(p.id_punto.nunique()),"lugares registrados"),
+        ("Total profesionales reportados",num(professional_total),"en los puntos registrados"),
+        ("Inversión registrada",f'{num(p.inversion_usd.sum())}<br><span style="font-size:.5em;color:{MUTED};">USD</span>',"monto reportado"),
     ]
     st.markdown('<div id="panorama-f01" class="section-kicker">01 · Panorama de la oferta vigente</div>',unsafe_allow_html=True)
     st.markdown('<div class="metric-row" style="grid-template-columns:repeat(7,1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
