@@ -1202,28 +1202,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
     fig=px.bar(impl,x="socios",y="modalidad_implementacion",orientation="h",text="socios",color_discrete_sequence=[BLUE],labels={"socios":"Socios","modalidad_implementacion":""}); fig.update_traces(textposition="outside"); plot(fig,320,"implementation_mode")
     section_figures.setdefault("Presencia de socios", []).append(fig)
 
-    st.markdown("#### Fuentes de apoyo declaradas por los socios")
-    donor=filt(d["donor_sources"].copy())
-    donor["estado_fuente"]=donor["donantes"].map(lambda x:"Fuente identificada" if x != "Sin fuente reportada" else "Sin fuente reportada")
-    source_status=donor.groupby("estado_fuente").id_servicio.nunique().reset_index(name="puntos")
-    named=donor[donor.donantes.ne("Sin fuente reportada")][["id_servicio","donantes"]].copy()
-    named_sources=named.groupby("donantes").id_servicio.nunique().nlargest(10).sort_values().reset_index(name="puntos")
-    with st.container(border=True):
-        dl,dr=st.columns([.72,1.28])
-        with dl:
-            st.markdown("##### Disponibilidad de información")
-            fig=px.pie(source_status,names="estado_fuente",values="puntos",hole=.62,color="estado_fuente",color_discrete_map={"Fuente identificada":BLUE,"Sin fuente reportada":GRAY})
-            fig.update_traces(textinfo="percent+value",textposition="inside"); plot(fig,470,"donor_status")
-            section_figures.setdefault("Presencia de socios", []).append(fig)
-        with dr:
-            st.markdown("##### Fuentes mencionadas con mayor frecuencia")
-            if named_sources.empty: st.info("No se identificaron fuentes para los filtros seleccionados.")
-            else:
-                fig=px.bar(named_sources,x="puntos",y="donantes",orientation="h",text="puntos",color_discrete_sequence=[NAVY],labels={"puntos":"Puntos respaldados","donantes":""})
-                fig.update_traces(textposition="outside"); plot(fig,470,"donor_sources")
-                section_figures.setdefault("Presencia de socios", []).append(fig)
-    st.caption("La visualización cuenta puntos en los que una organización declaró una fuente de apoyo. No representa montos ni atribuye financiamiento a un servicio específico.")
-
     # Vocabulario alineado al F01 real (grupo "Servicios y apoyos de la
     # organización": pregunta 5.1 "Seleccione las áreas o servicios del
     # establecimiento de salud que reciben apoyo" y 5.2 "tipo(s) de apoyo que
