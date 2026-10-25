@@ -1261,59 +1261,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 section_figures.setdefault("Presencia de socios", []).append(fig)
                 st.caption("El tamaño de cada bloque representa el número de establecimientos apoyados.")
 
-    # Áreas o servicios que reciben apoyo en los establecimientos de salud.
-    fs=filt(d["facility_services_joined"])
-    ft=fs.servicio.value_counts().head(10).reset_index(); ft.columns=["servicio","puntos"]; ft["foco"]="Establecimiento de salud"
-    with st.container(border=True):
-        st.markdown("##### Áreas o servicios que reciben apoyo")
-        if ft.empty: st.info("No hay servicios registrados para los filtros seleccionados.")
-        else:
-            ft["_tilecolor"]=value_gradient_colors(ft.puntos,[[0,tint(ORANGE,.82)],[1,ORANGE]])
-            fig=px.treemap(ft,path=["servicio"],values="puntos",color="servicio",color_discrete_map=dict(zip(ft.servicio,ft._tilecolor)))
-            set_value_tile_labels(fig,"puntos"); plot(fig,560,"facility_services_tree",margin=dict(l=6,r=6,t=10,b=6))
-            section_figures.setdefault("Paquetes de apoyo", []).append(fig)
-            st.caption("El tamaño de cada bloque representa los puntos que reciben apoyo en esa área.")
-
-    # Los cuadros de arriba solo muestran totales por área/tipo de apoyo, sin
-    # nombres. Aquí se lista cada establecimiento del universo filtrado con
-    # su cantidad total de apoyos recibidos (sumando áreas + tipos de apoyo
-    # combinados), de mayor a menor, para ver de un vistazo quién recibe más
-    # apoyo y quién recibe menos (incluyendo quienes no reciben ninguno). Se
-    # muestra como tabla (Organización / Establecimiento / barra) en vez de
-    # un gráfico de barras de Plotly, porque un eje Y de texto largo
-    # ("Establecimiento — Organización") no se puede alinear en columnas
-    # separadas — una tabla sí lo permite.
-    st.markdown("##### Establecimientos por nivel de apoyo recibido")
-    rank_f1,rank_f2,rank_f3=st.columns(3)
-    with rank_f1:
-        rank_area=st.selectbox("Filtrar por área o servicio",["Todas"]+sorted(fs.servicio.dropna().unique()),key="rank_filter_area")
-    with rank_f2:
-        rank_support=st.selectbox("Filtrar por tipo de apoyo",["Todos"]+sorted(fsup.tipo_apoyo.dropna().unique()),key="rank_filter_support")
-    with rank_f3:
-        rank_tipologia=st.selectbox("Filtrar por tipología",["Todas"]+sorted(facility_points.tipo_punto.dropna().unique()),key="rank_filter_tipologia")
-    combined_support=pd.concat([
-        fs[["organizacion","lugar"]],
-        fsup[["organizacion","lugar"]],
-    ],ignore_index=True)
-    support_counts=combined_support.groupby(["organizacion","lugar"]).size().reset_index(name="apoyos")
-    ranking=facility_points[["organizacion","lugar","tipo_punto"]].drop_duplicates().merge(support_counts,on=["organizacion","lugar"],how="left")
-    ranking["apoyos"]=ranking["apoyos"].fillna(0).astype(int)
-    if rank_tipologia!="Todas":
-        ranking=ranking[ranking.tipo_punto.eq(rank_tipologia)]
-    if rank_area!="Todas":
-        area_keys=set(map(tuple,fs[fs.servicio.eq(rank_area)][["organizacion","lugar"]].drop_duplicates().itertuples(index=False,name=None)))
-        ranking=ranking[ranking.apply(lambda row:(row.organizacion,row.lugar) in area_keys,axis=1)]
-    if rank_support!="Todos":
-        support_keys=set(map(tuple,fsup[fsup.tipo_apoyo.eq(rank_support)][["organizacion","lugar"]].drop_duplicates().itertuples(index=False,name=None)))
-        ranking=ranking[ranking.apply(lambda row:(row.organizacion,row.lugar) in support_keys,axis=1)]
-    if ranking.empty:
-        st.info("Ningún establecimiento cumple con los filtros seleccionados.")
-    else:
-        ranking=ranking.sort_values("apoyos",ascending=False).rename(columns={"organizacion":"Organización","lugar":"Establecimiento","tipo_punto":"Tipología","apoyos":"Apoyos recibidos"})
-        support_ranking_table(ranking)
-        n_zero=int((ranking["Apoyos recibidos"]==0).sum())
-        st.caption(f"Cada fila suma las áreas y los tipos de apoyo recibidos por ese establecimiento (no montos). {n_zero} establecimiento(s) de la selección actual no registran ningún apoyo.")
-
     # Vocabulario alineado al F01 real: la organización "realiza acciones de
     # salud pública" en ciertas "áreas temáticas" (pregunta sobre
     # intervention_areas) — tampoco usa "oferta".
