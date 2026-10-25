@@ -987,31 +987,24 @@ if module == RADIO_MODULE_OPTIONS[0]:
     active_public &= coverage.hasta.isna() | coverage.hasta.ge(window_start)
     coverage=coverage[~public_rows | active_public].copy()
     selected_coverage=coverage
-    st.markdown('<div id="territorio-f01" class="section-kicker">02 · Alcance territorial</div><h2>Presencia territorial - Ofertas</h2>',unsafe_allow_html=True)
+    st.markdown('<div id="territorio-f01" class="section-kicker">02 · Alcance territorial</div>',unsafe_allow_html=True)
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de servicios y acciones del simulacro histórico. Elija gráfico o mapa, consulte por estado o municipio y explore cada foco por separado.")
+        st.caption("Distribución de servicios y acciones del simulacro histórico. Consulte por estado o municipio y explore cada foco por separado.")
         territorial=selected_coverage.copy()
         for focus_name,heading in [
             ("Establecimiento de salud","Áreas o servicios del establecimiento de salud que reciben apoyo"),
             ("Salud pública","Áreas temáticas en las que la organización realiza acciones de salud pública"),
         ]:
             focus_points=territorial[territorial.foco.eq(focus_name)].copy()
-            st.markdown(f"### {heading}")
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
-            level_col,view_col=st.columns(2)
-            with level_col:
-                territory_level=st.radio(
-                    "Ver por",["Estado","Municipio"],horizontal=True,
-                    key=f"territory_{focus_key}_level_f01",
-                )
-            with view_col:
-                territory_view=st.radio(
-                    "Visualización",["Gráfico","Mapa"],horizontal=True,
-                    key=f"territory_{focus_key}_view_f01",
-                )
+            st.markdown("### Puntos de apoyo registrados" if is_facility else "### Puntos de acciones de salud pública registrados")
+            territory_level=st.radio(
+                "Nivel del análisis territorial",["Estado","Municipio"],horizontal=True,
+                key=f"territory_{focus_key}_level_f01",
+            )
             partner_col,action_col=st.columns(2)
             with partner_col:
                 partner_choice=st.selectbox(
@@ -1046,7 +1039,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             # puntos del foco con Socio aplicado, pero no cambia al alternar
             # Estado/Municipio ni al seleccionar un único servicio o acción.
             base_total=focus_points.id_punto.nunique()
-            if territory_view=="Mapa":
+            with st.container(border=True):
                 if territory_level=="Estado":
                     geo=load_estado_geojson()
                     focus_keys=set(focus_points.estado.dropna())
@@ -1057,7 +1050,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                     geo_rows=pd.DataFrame([
                         {"join_key":feature["properties"]["join_key"],
                          "nombre":feature["properties"]["adm1_name"]}
-                        for feature in geo["features"] if feature["properties"]["join_key"] in focus_keys
+                        for feature in geo["features"]
                     ])
                 else:
                     geo=load_municipio_geojson()
@@ -1069,7 +1062,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                     geo_rows=pd.DataFrame([
                         {"join_key":feature["properties"]["join_key"],
                          "nombre":feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
-                        for feature in geo["features"] if feature["properties"]["join_key"] in focus_keys
+                        for feature in geo["features"]
                     ])
                 if geo_rows.empty:
                     st.info("No hay límites geográficos disponibles para esta selección.")
@@ -1080,11 +1073,11 @@ if module == RADIO_MODULE_OPTIONS[0]:
                 map_data["porcentaje"]=map_data.puntos/base_total*100
                 fig=px.choropleth_map(
                     map_data,geojson=geo,locations="join_key",featureidkey="properties.join_key",
-                    color="porcentaje",color_continuous_scale=[_BRAND_PALE,_BRAND_SKY,_BRAND_BLUE,_BRAND_NAVY],
-                    range_color=(0,max(5,float(map_data.porcentaje.max()))),
+                    color="puntos",color_continuous_scale=[(0,"#E4E8EC"),(.001,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
+                    range_color=(0,max(1,int(map_data.puntos.max()))),
                     hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
-                    map_style="carto-positron",opacity=.85,
-                    labels={"porcentaje":"% del total de puntos"},
+                    map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=.9,
+                    labels={"puntos":"Puntos registrados"},
                 )
                 fig.update_traces(
                     marker_line_color="white",marker_line_width=1.2,
@@ -1092,19 +1085,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                    +str(base_total)+"<br>Porcentaje del total: %{customdata[2]:.1f}%"
                                    "<br>Socios: %{customdata[1]}<extra></extra>"),
                 )
-                bounds=geojson_lat_lon_bounds(geo,focus_keys)
-                if bounds:
-                    lat_lo,lat_hi,lon_lo,lon_hi=bounds
-                    lat_pad=max(.15,(lat_hi-lat_lo)*.3); lon_pad=max(.15,(lon_hi-lon_lo)*.3)
-                    fig.update_layout(map=dict(bounds=dict(
-                        west=max(-180,lon_lo-lon_pad),east=min(180,lon_hi+lon_pad),
-                        south=max(-90,lat_lo-lat_pad),north=min(90,lat_hi+lat_pad),
-                    )))
-                fig.update_layout(coloraxis_colorbar=dict(title="% de puntos"))
+                fig.update_layout(coloraxis_colorbar=dict(title="Puntos registrados"))
                 plot(fig,540,f"territory_{focus_key}_offer_map_f01",is_map=True)
                 section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-                st.caption("La intensidad del color representa el porcentaje de puntos del foco que ofrecen la selección en cada "+territory_level.lower()+". Pase el cursor sobre el mapa para ver el número de puntos y los socios.")
-                continue
+                st.caption("La intensidad del azul representa los puntos registrados en cada "+territory_level.lower()+"; las zonas sin registros se muestran en gris. Pase el cursor para ver los puntos y socios.")
+            if is_facility:
+                st.markdown("<h2>Presencia territorial - Ofertas</h2>",unsafe_allow_html=True)
+            st.markdown(f"### {heading}")
             stacked=subset.groupby(["tipo_accion","territorio"],as_index=False).agg(puntos=("id_punto","nunique"))
             action_totals=(subset.groupby("tipo_accion").id_punto.nunique()
                            .sort_values(ascending=False))
@@ -1153,7 +1140,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             plot(fig,max(570,46*len(action_order)+270),f"territory_{focus_key}_f01",
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-        st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra la misma selección por zona. El denominador es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
+        st.caption("En los gráficos, cada barra muestra qué porcentaje de los puntos del foco ofrece ese servicio o acción, desglosado por estado o municipio. El mapa muestra los puntos registrados de la misma selección por zona. El denominador de las barras es el total de puntos distintos del foco con los filtros actuales; una misma ubicación puede ofrecer varias acciones.")
 
         st.markdown('<div id="oferta-por-estado-y-organizacion"></div>',unsafe_allow_html=True)
         st.markdown("### Oferta por territorio")
