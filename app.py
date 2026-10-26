@@ -961,7 +961,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
             st.markdown("### Puntos de apoyo registrados" if is_facility else "### Puntos de acciones de salud pública registrados")
             map_level=st.radio(
                 "Nivel del análisis territorial",["Estado","Municipio","Parroquia"],horizontal=True,
-                key=f"territory_{focus_key}_level_f01",
+                index=1,key=f"territory_{focus_key}_level_f01",
             )
             territory_level="Municipio" if map_level=="Parroquia" else map_level
             partner_col,action_col=st.columns(2)
@@ -1054,12 +1054,14 @@ if module == RADIO_MODULE_OPTIONS[0]:
                     map_data["puntos"]=map_data.puntos.fillna(0).astype(int)
                     map_data["socios"]=map_data.socios.fillna("Sin oferta seleccionada")
                     map_data["porcentaje"]=map_data.puntos/base_total*100
+                    max_points=max(1,int(map_data.puntos.max()))
+                    zero_cut=min(.2,.5/max_points)
                     fig=px.choropleth_map(
                         map_data,geojson=geo,locations="join_key",featureidkey="properties.join_key",
-                        color="puntos",color_continuous_scale=[(0,"#E4E8EC"),(.001,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
-                        range_color=(0,max(1,int(map_data.puntos.max()))),
+                        color="puntos",color_continuous_scale=[(0,"#FFFFFF"),(zero_cut,"#FFFFFF"),(zero_cut,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
+                        range_color=(0,max_points),
                         hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
-                        map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=.9,
+                        map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=1,
                         labels={"puntos":"Puntos registrados"},
                     )
                     fig.update_traces(
@@ -1071,7 +1073,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                     fig.update_layout(coloraxis_colorbar=dict(title="Puntos registrados"))
                     plot(fig,540,f"territory_{focus_key}_offer_map_f01",is_map=True)
                     section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
-                    st.caption("La intensidad del azul representa los puntos registrados en cada "+territory_level.lower()+"; las zonas sin registros se muestran en gris. Pase el cursor para ver los puntos y socios.")
+                    st.caption("La intensidad del azul representa los puntos registrados en cada "+territory_level.lower()+"; las zonas con cero puntos se muestran en blanco. Pase el cursor para ver los puntos y socios.")
             if map_level=="Parroquia":
                 st.caption("El gráfico de barras permanece agrupado por municipio; la opción Parroquia cambia solo el mapa a puntos georreferenciados.")
             if is_facility:
