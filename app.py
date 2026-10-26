@@ -830,37 +830,53 @@ date_floor, date_ceiling = (
 hero_today_label = pd.Timestamp.today().strftime("%d/%m/%Y")
 st.markdown(f'<div class="hero"><b>OPS/OMS · CLÚSTER DE SALUD · VENEZUELA</b><h1>Tablero de la Respuesta en Salud del terremoto en Venezuela (M7.2 y M7.5)</h1><p>Presencia operativa, programación de actividades y resultados reportados</p><small>Fecha de consulta: {hero_today_label} · Periodo de reportes: {date_floor.strftime("%d/%m/%Y")} – {date_ceiling.strftime("%d/%m/%Y")}</small></div>', unsafe_allow_html=True)
 
-RADIO_MODULE_OPTIONS=["Mapeo de socios, servicios y apoyos (F01)", "Reportes periódicos de acciones (F02)"]
+F01_MODULE="Mapeo de socios, servicios y apoyos (F01)"
+F02_ACTIONS_MODULE="Reporte de acciones"
+F02_FACILITY_MODULE="Apoyo a establecimientos"
+F02_MODULE_OPTIONS=[F02_ACTIONS_MODULE,F02_FACILITY_MODULE]
 CALENDAR_MODULE="Calendario de brigadas"
 if "active_module" not in st.session_state:
-    st.session_state.active_module = RADIO_MODULE_OPTIONS[1] if st.query_params.get("vista")=="reportes" else RADIO_MODULE_OPTIONS[0]
-if "main_view_radio" not in st.session_state:
-    st.session_state.main_view_radio = st.session_state.active_module if st.session_state.active_module in RADIO_MODULE_OPTIONS else RADIO_MODULE_OPTIONS[0]
+    requested_view=st.query_params.get("vista")
+    st.session_state.active_module = (F02_ACTIONS_MODULE if requested_view=="reportes"
+                                      else F02_FACILITY_MODULE if requested_view=="establecimientos"
+                                      else F01_MODULE)
+elif st.session_state.active_module=="Reportes periódicos de acciones (F02)":
+    st.session_state.active_module=F02_ACTIONS_MODULE
+if "f02_view_control" not in st.session_state:
+    st.session_state.f02_view_control = st.session_state.active_module if st.session_state.active_module in F02_MODULE_OPTIONS else None
+
+def _go_to_f01_module() -> None:
+    st.session_state.active_module = F01_MODULE
+    st.session_state.f02_view_control = None
+    st.query_params.pop("vista", None)
 
 def _go_to_calendar_module() -> None:
     st.session_state.active_module = CALENDAR_MODULE
-    # Desmarcar el radio principal. Si quedara seleccionado "Registro",
-    # volver a hacer clic sobre la misma opción no dispararía on_change y la
-    # aplicación permanecería atrapada en el calendario.
-    st.session_state.main_view_radio = None
+    st.session_state.f02_view_control = None
     st.query_params.pop("vista", None)
 
-def _sync_module_from_radio() -> None:
-    selected = st.session_state.main_view_radio
-    if selected in RADIO_MODULE_OPTIONS:
+def _sync_f02_module() -> None:
+    selected = st.session_state.f02_view_control
+    if selected in F02_MODULE_OPTIONS:
         st.session_state.active_module = selected
-        if selected == RADIO_MODULE_OPTIONS[1]:
-            st.query_params["vista"] = "reportes"
-        else:
-            st.query_params.pop("vista", None)
+        st.query_params["vista"] = "reportes" if selected==F02_ACTIONS_MODULE else "establecimientos"
+    else:
+        _go_to_f01_module()
 
-nav_radio_col, nav_calendar_col = st.columns([5, 1.7])
-with nav_radio_col:
-    st.radio("Vista principal", RADIO_MODULE_OPTIONS, horizontal=True, label_visibility="collapsed", key="main_view_radio", on_change=_sync_module_from_radio)
+nav_f01_col, nav_f02_col, nav_calendar_col = st.columns([2.8,3.2,1.7])
+with nav_f01_col:
+    st.button(F01_MODULE,on_click=_go_to_f01_module,key="f01_module_btn",width="stretch")
+with nav_f02_col:
+    st.segmented_control("Vistas F02",F02_MODULE_OPTIONS,key="f02_view_control",on_change=_sync_f02_module,label_visibility="collapsed",width="stretch")
 with nav_calendar_col:
     with st.container(key="calendar_nav_btn"):
         st.button("📅 Calendario de brigadas", on_click=_go_to_calendar_module, key="calendar_module_btn", width="stretch")
 module = st.session_state.active_module
+st.markdown(f"""<style>
+.st-key-f01_module_btn button{{background:{tint(SKY,.72) if module==F01_MODULE else PALE}!important;color:{NAVY}!important;border:1px solid {BLUE if module==F01_MODULE else GRAY}!important;border-radius:8px!important;font-weight:700!important;min-height:42px}}
+.st-key-f02_view_control [data-testid="stSegmentedControl"] button{{background:{PALE}!important;color:{NAVY}!important;border:1px solid {GRAY}!important;font-weight:600!important;min-height:42px}}
+.st-key-f02_view_control [data-testid="stSegmentedControl"] button[aria-pressed="true"]{{background:{tint(SKY,.72)}!important;color:{NAVY}!important;border-color:{BLUE}!important}}
+</style>""",unsafe_allow_html=True)
 
 states = sorted(set(points["estado"].dropna()) | set(reports["estado"].dropna()))
 municipios = sorted(set(points["municipio"].dropna()) | set(reports["municipio"].dropna()))
@@ -872,7 +888,10 @@ st.sidebar.markdown("### Filtros")
 state = st.sidebar.selectbox("Estado", ["Todos"] + states)
 municipio_filter = st.sidebar.selectbox("Municipio", ["Todos"] + municipios)
 org = st.sidebar.selectbox("Organización", ["Todas"] + orgs)
-focus = st.sidebar.selectbox("Foco", ["Ambos", "Establecimiento de salud", "Salud pública"])
+if module == F01_MODULE:
+    focus = st.sidebar.selectbox("Foco", ["Ambos", "Establecimiento de salud", "Salud pública"])
+else:
+    focus = "Establecimiento de salud" if module==F02_FACILITY_MODULE else "Salud pública"
 # Barra deslizable (tipo timelapse) en vez de un selector de fecha, para
 # poder estirarla hacia atrás o adelante y consultar también el pasado.
 # Por defecto muestra solo los últimos 30 días CON datos (lo más parecido a
@@ -908,7 +927,7 @@ def filt(frame: pd.DataFrame, has_focus: bool = False) -> pd.DataFrame:
     return out
 
 
-if module == RADIO_MODULE_OPTIONS[0]:
+if module == F01_MODULE:
     section_figures: dict[str, list[go.Figure]] = {}
     p=filt(points,True)
     # Universo de socios: el registro de organizaciones (con modalidad,
@@ -1572,11 +1591,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
     _, dl_col, _ = st.columns([1.0,1.15,1.0])
     with dl_col:
         st.download_button("Descargar resumen PDF",data=report_bytes,file_name=f"Resumen_F01_{pd.Timestamp.today().strftime('%Y%m%d')}.pdf",mime="application/pdf",width="stretch")
-elif module.startswith("Reportes"):
+elif module in F02_MODULE_OPTIONS:
     section_figures: dict[str, list[go.Figure]] = {}
     r=filt(reports,True); ids=set(r.id_reporte); res=results[results.id_reporte.isin(ids)].copy(); active=r.sort_values("fecha_reporte").drop_duplicates(["organizacion","nombre_sitio"],keep="last")
-    section_band("REPORTE DE ACCIONES", "¿Qué acciones reportan los socios, dónde se realizan y qué resultados registran?")
-    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#mapa-f02">01 · Mapa</a><a href="#reportantes-f02">02 · Organizaciones que reportaron</a><a href="#focos-f02">03 · Resumen de los Reportes</a><a href="#reportes-establecimientos-f02">04 · Reportes de establecimientos de salud</a><a href="#reportes-acciones-f02">05 · Reportes de acciones de salud pública</a></div>',unsafe_allow_html=True)
+    is_actions_view=module==F02_ACTIONS_MODULE
+    section_band("REPORTE DE ACCIONES" if is_actions_view else "APOYO A ESTABLECIMIENTOS", "¿Qué acciones de salud pública reportan los socios, dónde se realizan y qué resultados registran?" if is_actions_view else "¿Qué apoyos a establecimientos reportan los socios, dónde se realizan y qué resultados registran?")
+    detail_link='<a href="#reportes-acciones-f02">04 · Reportes de acciones de salud pública</a>' if is_actions_view else '<a href="#reportes-establecimientos-f02">04 · Reportes de establecimientos de salud</a>'
+    st.markdown('<div class="index-label">Ir a la sección</div><div class="index"><a href="#mapa-f02">01 · Mapa</a><a href="#reportantes-f02">02 · Organizaciones que reportaron</a><a href="#focos-f02">03 · Resumen de los reportes</a>'+detail_link+'</div>',unsafe_allow_html=True)
     # Suma solo indicadores en unidad "personas" de salud pública (no mezcla
     # con casos/procedimientos/kits); igual que el resto del tablero, es una
     # suma de indicadores y no representa personas únicas.
@@ -1587,10 +1608,11 @@ elif module.startswith("Reportes"):
         ("Parroquias",num(r.loc[r.parroquia.ne("No reportada"),"parroquia"].nunique()),""),
         ("Organizaciones reportantes",num(r.organizacion.nunique()),""),
         ("Reportes periódicos",num(r.id_reporte.nunique()),""),
-        ("Personas atendidas en salud pública",num(people_reached),"suma de indicadores, no personas únicas"),
     ]
+    if is_actions_view:
+        cards.append(("Personas atendidas en salud pública",num(people_reached),"suma de indicadores, no personas únicas"))
     st.markdown('<h3>Panorama general de reportes periódicos</h3>',unsafe_allow_html=True)
-    st.markdown('<div class="metric-row" style="grid-template-columns:repeat(6,1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-row" style="grid-template-columns:repeat({len(cards)},1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
     st.markdown('<div id="mapa-f02" class="section-kicker">01 · Distribución territorial y georreferenciación</div><h2>Mapa de puntos con reporte periódico</h2>',unsafe_allow_html=True)
     point_reports=r.groupby(["organizacion","nombre_sitio"]).id_reporte.nunique().reset_index(name="reportes_punto")
     mapped=active.dropna(subset=["latitud","longitud"]).merge(point_reports,on=["organizacion","nombre_sitio"],how="left")
@@ -1678,7 +1700,7 @@ elif module.startswith("Reportes"):
     # número distinto (puntos) sin explicar la diferencia — se leía como un
     # error ("aparece 30 y luego 26"). Ahora cada cifra tiene su propia
     # etiqueta, y se agrega cuántas organizaciones (socios) hay en cada foco.
-    for focus_name in ["Acciones en el establecimiento de salud","Acciones de salud pública"]:
+    for focus_name in ["Acciones de salud pública" if is_actions_view else "Acciones en el establecimiento de salud"]:
         row=focus_summary[focus_summary.foco_formulario.eq(focus_name)]
         reports_value=int(row.reportes.iloc[0]) if not row.empty else 0
         points_value=int(row.puntos.iloc[0]) if not row.empty else 0
@@ -2197,11 +2219,12 @@ elif module.startswith("Reportes"):
                             plot(fig,420,f"gender_detail_{suffix}",margin=dict(l=4,r=24,t=12,b=18))
                             section_figures.setdefault(bucket, []).append(fig)
 
-    st.markdown('<div id="reportes-establecimientos-f02" class="section-rule"></div><div class="section-kicker">04 · Reportes de establecimientos de salud</div><h2>Evolución y alcance de los reportes de establecimientos de salud</h2>',unsafe_allow_html=True)
-    _render_focus_reports("Acciones en el establecimiento de salud", "Establecimiento de salud", RED, "est", "Tipos de establecimiento de salud", "Reportes de establecimientos de salud")
-
-    st.markdown('<div id="reportes-acciones-f02" class="section-rule"></div><div class="section-kicker">05 · Reportes de acciones de salud pública</div><h2>Evolución y alcance de los reportes de acciones de salud pública</h2>',unsafe_allow_html=True)
-    _render_focus_reports("Acciones de salud pública", "Salud pública", YELLOW, "pub", "Tipos de lugar de intervención", "Reportes de acciones de salud pública", include_population=True)
+    if is_actions_view:
+        st.markdown('<div id="reportes-acciones-f02" class="section-rule"></div><div class="section-kicker">04 · Reportes de acciones de salud pública</div><h2>Evolución y alcance de los reportes de acciones de salud pública</h2>',unsafe_allow_html=True)
+        _render_focus_reports("Acciones de salud pública", "Salud pública", YELLOW, "pub", "Tipos de lugar de intervención", "Reportes de acciones de salud pública", include_population=True)
+    else:
+        st.markdown('<div id="reportes-establecimientos-f02" class="section-rule"></div><div class="section-kicker">04 · Reportes de establecimientos de salud</div><h2>Evolución y alcance de los reportes de establecimientos de salud</h2>',unsafe_allow_html=True)
+        _render_focus_reports("Acciones en el establecimiento de salud", "Establecimiento de salud", RED, "est", "Tipos de establecimiento de salud", "Reportes de establecimientos de salud")
 
     st.markdown("### Descargar infografía")
     st.markdown("#### Vista completa")
@@ -2218,7 +2241,7 @@ elif module.startswith("Reportes"):
     disability_by_area=res.groupby("area").discapacidad.sum().nlargest(12).sort_values()
     report_bytes=build_report(
         title="Tablero de la Respuesta en Salud del terremoto en Venezuela",
-        subtitle="Reportes periódicos de acciones (F02)",
+        subtitle=f"{module} (F02)",
         scope_text="Universo de reportes vigente según los filtros de estado, municipio, organización, foco y rango de fecha activos.",
         as_of_text=f"Generado el {pd.Timestamp.today().strftime('%d/%m/%Y')}",
         kpis=[(c[0],c[1]) for c in cards],
