@@ -1013,8 +1013,13 @@ if module == RADIO_MODULE_OPTIONS[0]:
                         fig=px.scatter_map(
                             mapped_points,lat="latitud",lon="longitud",hover_name="lugar",
                             custom_data=["parroquia_visible","municipio","estado","organizacion"],
-                            map_style="carto-positron",center={"lat":6.5,"lon":-66.6},zoom=5.1,
+                            map_style="carto-positron",
                         )
+                        fig.add_trace(go.Scattermap(
+                            lat=[0.0,12.5],lon=[-74.5,-59.5],mode="markers",
+                            marker=dict(size=1,opacity=0),showlegend=False,hoverinfo="skip",
+                        ))
+                        fig.update_layout(map_fitbounds="locations")
                         fig.update_traces(
                             marker=dict(size=12,color=_BRAND_BLUE,opacity=.9),
                             hovertemplate=("<b>%{hovertext}</b><br>Parroquia: %{customdata[0]}"
@@ -1061,9 +1066,14 @@ if module == RADIO_MODULE_OPTIONS[0]:
                         color="puntos",color_continuous_scale=[(0,"#FFFFFF"),(zero_cut,"#FFFFFF"),(zero_cut,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
                         range_color=(0,max_points),
                         hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
-                        map_style="carto-positron",center={"lat":6.5,"lon":-66.6},zoom=5.1,opacity=1,
+                        map_style="carto-positron",opacity=1,
                         labels={"puntos":"Puntos registrados"},
                     )
+                    fig.add_trace(go.Scattermap(
+                        lat=[0.0,12.5],lon=[-74.5,-59.5],mode="markers",
+                        marker=dict(size=1,opacity=0),showlegend=False,hoverinfo="skip",
+                    ))
+                    fig.update_layout(map_fitbounds="locations")
                     fig.update_traces(
                         marker_line_color="white",marker_line_width=1.2,
                         hovertemplate=("<b>%{hovertext}</b><br>Puntos que ofertan la selección: %{customdata[0]} de "
