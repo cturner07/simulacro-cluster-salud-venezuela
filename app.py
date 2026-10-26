@@ -1013,7 +1013,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                         fig=px.scatter_map(
                             mapped_points,lat="latitud",lon="longitud",hover_name="lugar",
                             custom_data=["parroquia_visible","municipio","estado","organizacion"],
-                            map_style="carto-positron",
+                            map_style="carto-positron",center={"lat":6.5,"lon":-66.6},zoom=3.8,
                         )
                         fig.update_traces(
                             marker=dict(size=12,color=_BRAND_BLUE,opacity=.9),
@@ -1021,11 +1021,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                            "<br>Municipio: %{customdata[1]}<br>Estado: %{customdata[2]}"
                                            "<br>Socio: %{customdata[3]}<extra></extra>"),
                         )
-                        fig.add_trace(go.Scattermap(
-                            lat=[0.0,12.5],lon=[-74.5,-59.5],mode="markers",
-                            marker=dict(size=1,opacity=0),showlegend=False,hoverinfo="skip",
-                        ))
-                        fig.update_layout(map_fitbounds="locations")
                         plot(fig,760,f"territory_{focus_key}_parish_points_f01",is_map=True)
                         section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
                         st.caption(f"Se muestran {mapped_points.id_punto.nunique()} puntos georreferenciados de la selección. Cuando el registro histórico no identifica la parroquia, el punto aparece en su coordenada y se indica «No reportada» al pasar el cursor.")
@@ -1066,7 +1061,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                         color="puntos",color_continuous_scale=[(0,"#FFFFFF"),(zero_cut,"#FFFFFF"),(zero_cut,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
                         range_color=(0,max_points),
                         hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
-                        map_style="carto-positron",opacity=1,
+                        map_style="carto-positron",center={"lat":6.5,"lon":-66.6},zoom=3.8,opacity=1,
                         labels={"puntos":"Puntos registrados"},
                     )
                     fig.update_traces(
@@ -1075,11 +1070,6 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                        +str(base_total)+"<br>Porcentaje del total: %{customdata[2]:.1f}%"
                                        "<br>Socios: %{customdata[1]}<extra></extra>"),
                     )
-                    fig.add_trace(go.Scattermap(
-                        lat=[0.0,12.5],lon=[-74.5,-59.5],mode="markers",
-                        marker=dict(size=1,opacity=0),showlegend=False,hoverinfo="skip",
-                    ))
-                    fig.update_layout(map_fitbounds="locations")
                     fig.update_layout(coloraxis_colorbar=dict(title="Puntos registrados"))
                     plot(fig,760,f"territory_{focus_key}_offer_map_f01",is_map=True)
                     section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
