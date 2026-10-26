@@ -1013,7 +1013,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                         fig=px.scatter_map(
                             mapped_points,lat="latitud",lon="longitud",hover_name="lugar",
                             custom_data=["parroquia_visible","municipio","estado","organizacion"],
-                            map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,
+                            map_style="carto-positron",center={"lat":6.5,"lon":-66.6},zoom=5.1,
                         )
                         fig.update_traces(
                             marker=dict(size=12,color=_BRAND_BLUE,opacity=.9),
@@ -1021,7 +1021,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                            "<br>Municipio: %{customdata[1]}<br>Estado: %{customdata[2]}"
                                            "<br>Socio: %{customdata[3]}<extra></extra>"),
                         )
-                        plot(fig,540,f"territory_{focus_key}_parish_points_f01",is_map=True)
+                        plot(fig,760,f"territory_{focus_key}_parish_points_f01",is_map=True)
                         section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
                         st.caption(f"Se muestran {mapped_points.id_punto.nunique()} puntos georreferenciados de la selección. Cuando el registro histórico no identifica la parroquia, el punto aparece en su coordenada y se indica «No reportada» al pasar el cursor.")
                 else:
@@ -1061,7 +1061,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                         color="puntos",color_continuous_scale=[(0,"#FFFFFF"),(zero_cut,"#FFFFFF"),(zero_cut,_BRAND_PALE),(.35,_BRAND_SKY),(1,_BRAND_NAVY)],
                         range_color=(0,max_points),
                         hover_name="nombre",custom_data=["puntos","socios","porcentaje"],
-                        map_style="carto-positron",center={"lat":7.8,"lon":-66.3},zoom=4.4,opacity=1,
+                        map_style="carto-positron",center={"lat":6.5,"lon":-66.6},zoom=5.1,opacity=1,
                         labels={"puntos":"Puntos registrados"},
                     )
                     fig.update_traces(
@@ -1071,7 +1071,7 @@ if module == RADIO_MODULE_OPTIONS[0]:
                                        "<br>Socios: %{customdata[1]}<extra></extra>"),
                     )
                     fig.update_layout(coloraxis_colorbar=dict(title="Puntos registrados"))
-                    plot(fig,540,f"territory_{focus_key}_offer_map_f01",is_map=True)
+                    plot(fig,760,f"territory_{focus_key}_offer_map_f01",is_map=True)
                     section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
                     st.caption("La intensidad del azul representa los puntos registrados en cada "+territory_level.lower()+"; las zonas con cero puntos se muestran en blanco. Pase el cursor para ver los puntos y socios.")
             if map_level=="Parroquia":
