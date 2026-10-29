@@ -1147,7 +1147,7 @@ if module == F01_MODULE:
                  margin=dict(l=8,r=50,t=105,b=55))
             section_figures.setdefault("Alcance territorial por acción",[]).append(fig)
             if is_facility:
-                st.markdown("### Tipo de apoyo proporcionado")
+                st.markdown("### Modalidades de apoyo")
                 fsup=filt(d["facility_supports_joined"])
                 ftsup=fsup.tipo_apoyo.value_counts().head(10).reset_index()
                 ftsup.columns=["tipo_apoyo","puntos"]
