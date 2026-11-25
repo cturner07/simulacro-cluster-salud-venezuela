@@ -215,7 +215,7 @@ FACILITY_SUPPORT_CURRENT_NAMES = {
     "Acompañamiento técnico": "Acompañamiento técnico y capacitación",
 }
 
-st.set_page_config(page_title="Tablero de la Respuesta en Salud · Venezuela", page_icon="✚", layout="wide")
+st.set_page_config(page_title="Tablero de la Respuesta en Salud", page_icon="✚", layout="wide")
 
 
 @st.cache_data
@@ -285,8 +285,10 @@ def geojson_lat_lon_bounds(geo: dict, join_keys: set) -> tuple[float, float, flo
 def leaflet_partner_map(geo: dict, areas: pd.DataFrame, level: str,
                         markers: pd.DataFrame | None = None,
                         background_geo: dict | None = None,
+                        outline_geo: dict | None = None,
                         metric: str = "socios", metric_label: str = "Socios",
-                        zoom_to_data: bool = False, marker_only: bool = False) -> None:
+                        zoom_to_data: bool = False, marker_only: bool = False,
+                        original_palette: bool = False) -> None:
     """Mapa territorial con la presentación Leaflet del tablero original."""
     columns = ["join_key", "nombre", "socios", "puntos"]
     if metric not in columns:
@@ -325,7 +327,7 @@ background:linear-gradient(90deg,__PALE__,__SKY__,__BLUE__,__NAVY__)}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-const geo=__GEO__, background=__BG__, rows=__ROWS__, markers=__MARKERS__, maxCount=__MAX__, level=__LEVEL__, metric=__METRIC__, metricLabel=__METRIC_LABEL__, autoFocus=__AUTO_FOCUS__, markerOnly=__MARKER_ONLY__;
+const geo=__GEO__, background=__BG__, outlines=__OUTLINES__, rows=__ROWS__, markers=__MARKERS__, maxCount=__MAX__, level=__LEVEL__, metric=__METRIC__, metricLabel=__METRIC_LABEL__, autoFocus=__AUTO_FOCUS__, markerOnly=__MARKER_ONLY__;
 const lookup=new Map(rows.map(r=>[r.join_key,r]));
 const map=L.map('map',{scrollWheelZoom:true,zoomControl:true,zoomSnap:.1,minZoom:3,maxZoom:12});
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
@@ -345,6 +347,7 @@ const areaLayer=L.geoJSON(geo,{style:f=>{let r=lookup.get(f.properties.join_key)
  l.on('mouseover',()=>l.setStyle({color:'__ORANGE__',weight:2.4}));
  l.on('mouseout',()=>l.setStyle({color:'#fff',weight:1.15}));}
 }).addTo(map);
+if(outlines){L.geoJSON(outlines,{interactive:false,style:{color:'#20252b',weight:2.1,fillOpacity:0,opacity:.95}}).addTo(map);}
 const clusterLayer=markerOnly&&L.markerClusterGroup?L.markerClusterGroup({showCoverageOnHover:false,
  iconCreateFunction:c=>{const allUnreported=c.getAllChildMarkers().every(m=>m.options.reportStatus==='Sin reporte');
  return L.divIcon({html:'<div class="facility-cluster'+(allUnreported?' unreported':'')+'" style="width:36px;height:36px">'+c.getChildCount()+'</div>',className:'',iconSize:[42,42]});}}):null;
@@ -386,6 +389,7 @@ if(markerOnly && markers.some(p=>p.estado_reporte)){
 </script></body></html>"""
     page=(html_template.replace("__GEO__",json.dumps(geo,ensure_ascii=False).replace("</","<\\/"))
                        .replace("__BG__",json.dumps(background_geo,ensure_ascii=False).replace("</","<\\/") if background_geo else "null")
+                       .replace("__OUTLINES__",json.dumps(outline_geo,ensure_ascii=False).replace("</","<\\/") if outline_geo else "null")
                        .replace("__ROWS__",json.dumps(values,ensure_ascii=False))
                        .replace("__MARKERS__",json.dumps(points,ensure_ascii=False))
                        .replace("__MAX__",str(maximum))
@@ -394,11 +398,11 @@ if(markerOnly && markers.some(p=>p.estado_reporte)){
                        .replace("__METRIC_LABEL__",json.dumps(metric_label,ensure_ascii=False))
                        .replace("__AUTO_FOCUS__","true" if zoom_to_data else "false")
                        .replace("__MARKER_ONLY__","true" if marker_only else "false")
-                       .replace("__ZERO__",_BRAND_GRAY)
-                       .replace("__PALE__",_BRAND_PALE)
-                       .replace("__SKY__",_BRAND_SKY)
-                       .replace("__BLUE__",_BRAND_BLUE)
-                       .replace("__NAVY__",_BRAND_NAVY)
+                       .replace("__ZERO__","#e1e5eb" if original_palette else _BRAND_GRAY)
+                       .replace("__PALE__","#d5e5f0" if original_palette else _BRAND_PALE)
+                       .replace("__SKY__","#a8c9df" if original_palette else _BRAND_SKY)
+                       .replace("__BLUE__","#648fb9" if original_palette else _BRAND_BLUE)
+                       .replace("__NAVY__","#35679e" if original_palette else _BRAND_NAVY)
                        .replace("__ORANGE__",_BRAND_ORANGE))
     components.html(page,height=560,scrolling=False)
 
@@ -918,27 +922,40 @@ st.markdown(f"""
   .module-head h2{{margin:0;color:{NAVY};font-size:1.55rem}}.module-head p{{margin:4px 0 0;color:{MUTED}}}
   .section-band{{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem .65rem;background:{PALE};border:1px solid {tint(SKY,.7)};border-left:5px solid {NAVY};color:{NAVY};border-radius:9px;padding:.6rem .85rem;margin:.9rem 0 .65rem;font-weight:800;font-size:.92rem;letter-spacing:.02em}}
   .section-band span{{color:{MUTED};font-weight:500;font-style:italic;font-size:.88rem;letter-spacing:0}}
-  .metric-row{{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin:16px 0 26px}}
-  .metric{{background:white;border:1px solid {tint(GRAY,.75)};border-top:4px solid {BLUE};padding:14px 16px;min-height:106px;text-align:center;display:flex;flex-direction:column}}
-  .metric span{{display:flex;align-items:center;justify-content:center;min-height:32px;text-transform:uppercase;font-size:.68rem;letter-spacing:.08em;color:{MUTED};font-weight:700;line-height:1.35}}
-  .metric strong{{display:block;font-size:2rem;color:{NAVY};margin:.2rem 0}}.metric small{{display:block;color:{MUTED};font-size:.73rem;line-height:1.3;margin-top:2px}}
-  .facility-metrics{{gap:10px;margin:10px 0 14px}}
-  .facility-metrics .metric{{padding:9px 7px;min-height:88px;border-top-width:3px}}
-  .facility-metrics .metric strong{{font-size:1.45rem;line-height:1.1;margin:.1rem 0 .25rem;white-space:nowrap}}
-  .facility-metrics .metric span{{font-size:.59rem;letter-spacing:.055em;min-height:25px;line-height:1.2}}
-  .facility-metrics .metric small{{font-size:.65rem;line-height:1.22;margin-top:1px}}
+  .metric-row{{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;margin:16px 0 26px;background:white;border:1px solid #d8e1eb;border-radius:14px;box-shadow:0 8px 22px #1934520b;overflow:hidden;font-family:"Source Sans 3","Source Sans Pro",sans-serif}}
+  .metric{{background:white;border:0;border-right:1px solid #e0e7ee;padding:14px 16px;min-height:94px;text-align:left;display:flex;flex-direction:column;min-width:0}}
+  .metric:last-child{{border-right:0}}
+  .metric span{{display:flex;align-items:center;justify-content:flex-start;min-height:0;text-transform:uppercase;font-size:.7rem;letter-spacing:.035em;color:#586777;font-weight:750;line-height:1.2}}
+  .metric strong{{display:block;font-size:1.85rem;line-height:1.1;color:#4e70a8;font-weight:750;margin:0 0 8px;overflow-wrap:anywhere}}.metric small{{display:block;color:#728091;font-size:.75rem;line-height:1.25;margin-top:2px}}
+  .facility-metrics .metric{{padding:12px 13px;min-height:94px}}
+  .facility-metrics .metric strong{{font-size:1.65rem;line-height:1.1}}
+  .facility-metrics .metric span{{font-size:.66rem;letter-spacing:.035em;line-height:1.2}}
+  .facility-metrics .metric small{{font-size:.72rem;line-height:1.25}}
+  .report-overview{{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin:14px 0;background:white;border:1px solid #d8e1eb;border-radius:14px;box-shadow:0 8px 22px #1934520b;overflow:hidden;font-family:"Source Sans 3","Source Sans Pro",sans-serif}}
+  .report-overview.report-people{{grid-template-columns:repeat(6,minmax(0,1fr))}}
+  .report-overview .metric{{border:0;border-right:1px solid #e0e7ee;border-radius:0;min-height:94px;padding:12px 14px;text-align:left;font-family:inherit}}
+  .report-overview .metric:last-child{{border-right:0}}
+  .report-overview .metric strong{{color:#4e70a8;font-size:1.85rem;line-height:1.1;font-weight:750;margin:0 0 8px;white-space:nowrap}}
+  .report-overview .metric span{{justify-content:flex-start;min-height:0;font-size:.7rem;line-height:1.2;letter-spacing:.035em;color:#586777;font-weight:750}}
+  .report-overview .metric small{{color:#728091;font-size:.75rem;line-height:1.25}}
+  .st-key-f02_action_tabs [role="radiogroup"]{{flex-wrap:wrap!important;gap:6px!important}}
+  .st-key-f02_action_tabs [data-testid="stRadioOption"]{{margin-right:0!important}}
   .pilot{{background:{tint(ORANGE,.88)};border:1px solid {tint(ORANGE,.45)};border-radius:8px;padding:10px 13px;color:{shade(ORANGE,.55)};font-size:.85rem}}
   .excel-dl{{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:{NAVY};background:white;border:1px solid {tint(GRAY,.68)};border-radius:8px;padding:5px 11px;font-weight:700;font-size:.83rem;line-height:1.6}}
   .excel-dl:hover{{border-color:{BLUE};color:{BLUE}}}
   .excel-dl svg{{flex:none}}
-  .index-label{{color:{MUTED};font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin:10px 0 8px}}
-  .index{{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 20px}}
-  .index a{{text-decoration:none;color:{NAVY};background:white;border:1px solid {tint(GRAY,.68)};border-radius:999px;padding:7px 12px;font-weight:700;font-size:.82rem}}
-  .index a::before{{content:"↓ ";color:{BLUE}}}
+  .sidebar-index-label{{color:{MUTED};font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.045em;margin:12px 0 7px;white-space:nowrap}}
+  .sidebar-index{{display:flex;flex-direction:column;gap:4px;margin:0 0 12px}}
+  .sidebar-index a{{display:block;text-decoration:none;color:{NAVY};background:white;border:1px solid {tint(GRAY,.68)};border-radius:7px;padding:7px 10px;font-weight:650;font-size:.78rem;line-height:1.3}}
+  .sidebar-index a:hover{{border-color:{BLUE};color:{BLUE}}}
+  .sidebar-index a.active,.sidebar-index a[aria-current="location"]{{background:{NAVY};border-color:{NAVY};color:white}}
+  .sidebar-daily{{background:white;border:1px solid {tint(GRAY,.68)};border-left:3px solid {ORANGE};border-radius:8px;padding:8px 10px;margin:5px 0 9px;font-size:.77rem;color:{NAVY}}}
+  .sidebar-daily strong{{display:block;font-size:1.2rem;line-height:1.2}}
+  .sidebar-daily small{{display:block;color:{MUTED};font-size:.7rem;line-height:1.3}}
   .ext-links{{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 20px}}
   .ext-links a{{text-decoration:none;color:{NAVY};background:white;border:1px solid {tint(GRAY,.68)};border-radius:999px;padding:7px 12px;font-weight:700;font-size:.82rem}}
   .ext-links a::after{{content:" ↗";color:{BLUE}}}
-  .sidebar-nav{{display:flex;gap:7px;margin:4px 0 18px}}
+  .sidebar-nav{{display:flex;gap:7px;margin:10px 0 20px}}
   .sidebar-nav a{{flex:1;text-decoration:none;text-align:center;color:{NAVY};background:white;border:1px solid {tint(GRAY,.68)};border-radius:8px;padding:8px 6px;font-weight:700;font-size:.8rem}}
   .sidebar-nav a:hover{{border-color:{BLUE};color:{BLUE}}}
   [data-testid="stSidebar"] :is(.st-key-sidebar_update_f01,.st-key-sidebar_update_f02,.st-key-sidebar_calendar) a{{min-height:36px!important;padding:8px 6px!important;border:0!important;border-radius:8px!important;background:{BLUE}!important;color:white!important;font-size:.8rem!important;font-weight:700!important;text-decoration:none!important}}
@@ -964,10 +981,10 @@ st.markdown(f"""
   .section-kicker{{color:{RED};text-transform:uppercase;letter-spacing:.11em;font-size:.7rem;font-weight:800;margin-top:22px}}
   .section-rule{{border-top:1px solid {tint(GRAY,.55)};margin:24px 0 8px}}
   [data-testid="stRadio"] label p{{color:{INK}!important;font-weight:700}}
-  h2,h3{{color:{NAVY}}}
-  .block-container h2{{font-size:1.25rem!important;line-height:1.3;font-weight:600}}
-  .block-container h3{{font-size:1rem!important;line-height:1.25;font-weight:600}}
-  .block-container h4{{font-size:.95rem!important;line-height:1.3;font-weight:600}}
+  h2,h3,h4{{color:#252b33}}
+  .block-container h2{{font-size:1.35rem!important;line-height:1.3;font-weight:650}}
+  .block-container h3{{font-size:1.12rem!important;line-height:1.25;font-weight:650}}
+  .block-container h4{{font-size:.98rem!important;line-height:1.3;font-weight:650}}
   /* Acerca cada figura a su encabezado, sin comprimir los controles ni las tarjetas. */
   .block-container [data-testid="stPlotlyChart"]{{margin-top:-.45rem}}
   .block-container h3,.block-container h4{{margin-bottom:.12rem!important}}
@@ -994,7 +1011,9 @@ st.markdown(f"""
     .support-table-wrap{{max-height:none!important;overflow:visible!important}}
     .print-break{{break-before:page}}
   }}
-  @media(max-width:900px){{.metric-row{{grid-template-columns:repeat(2,1fr)}}}}
+  @media(max-width:1100px){{.report-overview,.report-overview.report-people{{grid-template-columns:repeat(3,minmax(0,1fr))}}.report-overview .metric{{border-bottom:1px solid #e0e7ee}}}}
+  @media(max-width:900px){{.metric-row{{grid-template-columns:repeat(2,1fr)!important}}.metric-row .metric:nth-child(2n){{border-right:0}}.metric-row .metric{{border-bottom:1px solid #e0e7ee}}}}
+  @media(max-width:650px){{.report-overview,.report-overview.report-people{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1021,7 +1040,7 @@ date_floor, date_ceiling = (
     else (pd.Timestamp.today().date(), pd.Timestamp.today().date())
 )
 hero_today_label = pd.Timestamp.today().strftime("%d/%m/%Y")
-st.markdown(f'<div class="hero"><b>OPS/OMS · CLÚSTER DE SALUD · VENEZUELA</b><h1>Tablero de la Respuesta en Salud del terremoto en Venezuela (M7.2 y M7.5)</h1><p>Presencia operativa, programación de actividades y resultados reportados</p><small>Fecha de consulta: {hero_today_label} · Periodo de reportes: {date_floor.strftime("%d/%m/%Y")} – {date_ceiling.strftime("%d/%m/%Y")}</small></div>', unsafe_allow_html=True)
+st.markdown(f'<div class="hero"><b>OPS/OMS · CLÚSTER DE SALUD · VENEZUELA</b><h1>Tablero de la Respuesta en Salud</h1><p>Presencia operativa, programación de actividades y resultados reportados</p><small>Fecha de consulta: {hero_today_label} · Periodo de reportes: {date_floor.strftime("%d/%m/%Y")} – {date_ceiling.strftime("%d/%m/%Y")}</small></div>', unsafe_allow_html=True)
 
 F01_MODULE="Registro de oferta · Clúster de salud"
 F01_FACILITY_MODULE="Capacidad de apoyo a establecimientos de salud"
@@ -1102,12 +1121,12 @@ st.markdown(f"""<style>
 states = sorted(set(points["estado"].dropna()) | set(reports["estado"].dropna()))
 municipios = sorted(set(points["municipio"].dropna()) | set(reports["municipio"].dropna()))
 orgs = sorted(set(points["organizacion"].dropna()) | set(reports["organizacion"].dropna()))
-st.sidebar.markdown("### Filtros")
+filters_panel = st.sidebar.expander("Filtros", expanded=False)
 # Orden: jerarquía geográfica, socio y rango de fecha.
-state = st.sidebar.selectbox("Estado", ["Todos"] + states)
-municipio_filter = st.sidebar.selectbox("Municipio", ["Todos"] + municipios)
+state = filters_panel.selectbox("Estado", ["Todos"] + states)
+municipio_filter = filters_panel.selectbox("Municipio", ["Todos"] + municipios)
 def render_calendar(section_figures: dict[str, list[go.Figure]]) -> None:
-    st.markdown(f'<div id="calendario-f01" class="section-kicker" style="color:{ORANGE}">Calendario de brigadas</div>',unsafe_allow_html=True)
+    st.markdown(f'<div id="calendario-f01" class="section-kicker" style="color:{ORANGE}">02 · Calendario de brigadas</div>',unsafe_allow_html=True)
     cal=filt(d["calendar"],False); cal=cal[cal.foco.eq("Salud pública")]
     st.markdown(f'<h2 style="color:{ORANGE}">Calendario de brigadas de salud pública · {CALENDAR_YEAR}</h2>',unsafe_allow_html=True)
     st.caption("Programación ilustrativa simulada a partir de la vigencia y los días declarados en F01. Las fechas y cantidades de brigadas no son actividades confirmadas.")
@@ -1381,20 +1400,44 @@ def render_calendar(section_figures: dict[str, list[go.Figure]]) -> None:
     
     
 focus = "Establecimiento de salud" if module in (F01_FACILITY_MODULE,F02_FACILITY_MODULE) else "Salud pública"
-partner = st.sidebar.selectbox("Socio", ["Todos"] + orgs, key="sidebar_socio")
-# Barra deslizable (tipo timelapse) en vez de un selector de fecha, para
-# poder estirarla hacia atrás o adelante y consultar también el pasado.
-# Por defecto muestra solo los últimos 30 días CON datos (lo más parecido a
-# "activo ahora" que permite este set de reportes históricos) — se angosta
-# o se amplía hasta el inicio del período para ver el acumulado completo.
+partner = filters_panel.selectbox("Socio", ["Todos"] + orgs, key="sidebar_socio")
 default_start = max(date_floor, date_ceiling - timedelta(days=30))
-date_start, date_end = st.sidebar.slider(
+date_start, date_end = filters_panel.slider(
     "Rango de fecha del reporte",
     min_value=date_floor,
     max_value=date_ceiling,
     value=(default_start, date_ceiling),
     format="DD/MM/YYYY",
 )
+today = pd.Timestamp.today().normalize()
+def _today_count(frame: pd.DataFrame, id_column: str) -> int:
+    rows = frame[pd.to_datetime(frame["fecha_reporte"], errors="coerce").dt.normalize().eq(today)]
+    if state != "Todos": rows = rows[rows.estado.eq(state)]
+    if municipio_filter != "Todos": rows = rows[rows.municipio.eq(municipio_filter)]
+    if partner != "Todos": rows = rows[rows.organizacion.eq(partner)]
+    return int(rows[id_column].nunique())
+
+today_f01 = _today_count(fac, "id_establecimiento")
+today_f02 = _today_count(reports, "id_reporte")
+st.sidebar.markdown(
+    f'<div class="sidebar-daily"><strong>{today_f01 + today_f02}</strong> registros hoy · {today.strftime("%d/%m/%Y")}'
+    f'<small>F01 establecimientos: {today_f01} · F02 reportes: {today_f02}</small></div>',
+    unsafe_allow_html=True,
+)
+
+def render_sidebar_index(links: list[tuple[str, str]]) -> None:
+    items = "".join(f'<a href="#{anchor}" data-section="{anchor}">{label}</a>' for anchor, label in links)
+    index_title={
+        F01_MODULE:"Registro de oferta",
+        F02_ACTIONS_MODULE:"Reporte de acciones",
+        F01_FACILITY_MODULE:"Capacidad de apoyo",
+        F02_FACILITY_MODULE:"Acciones implementadas",
+    }.get(module,module)
+    st.sidebar.markdown(
+        f'<div class="sidebar-index-label">Índice · {index_title}</div><nav class="sidebar-index" aria-label="Secciones del tablero">{items}</nav>',
+        unsafe_allow_html=True,
+    )
+
 nav_buttons = '<div class="sidebar-nav"><a href="#top">Inicio</a></div>'
 st.sidebar.markdown(nav_buttons, unsafe_allow_html=True)
 st.sidebar.link_button("Actualizar datos F01 ↗", "https://ee.kobotoolbox.org/x/gjyvWedn", key="sidebar_update_f01", width="stretch")
@@ -1432,15 +1475,17 @@ if module in F01_MODULE_OPTIONS:
     first_f01=f01_report_dates.min().strftime("%d/%m/%Y"); last_f01=f01_report_dates.max().strftime("%d/%m/%Y")
     section_band("SOCIOS Y APOYOS DEL CLÚSTER SALUD" if module==F01_MODULE else "CAPACIDAD DE APOYO A ESTABLECIMIENTOS DE SALUD · F01", "Registro de la oferta de acciones de salud pública de los socios." if module==F01_MODULE else "Portafolio de capacidades declaradas en F01. En la vista de reportes se muestra solo como contexto; no equivale a acciones realizadas.")
     panorama_link="01 · Panorama de la oferta vigente" if module==F01_MODULE else "01 · Panorama del apoyo institucional"
-    section_links = f'<div class="index-label">Ir a la sección</div><div class="index"><a href="#panorama-f01">{panorama_link}</a>'
-    section_links += '<a href="#calendario-f01">Calendario de brigadas</a>' if module==F01_MODULE else ''
-    section_links += '<a href="#territorio-f01">02 · Alcance territorial</a>'
-    section_links += '<a href="#socios-f01">03 · Socios y lugares de intervención</a>' if module==F01_MODULE else '<a href="#socios-f01">03 · Socios</a>'
-    section_links += '<a href="#apoyos-establecimientos-f01">04 · Apoyo a establecimientos de salud</a>' if is_facility_capacity_view else ''
+    section_links = [("panorama-f01", panorama_link)]
+    if module==F01_MODULE:
+        section_links.append(("calendario-f01", "02 · Calendario de brigadas"))
+    section_links.append(("territorio-f01", "03 · Alcance territorial" if module==F01_MODULE else "02 · Alcance territorial"))
+    section_links.append(("socios-f01", "04 · Socios y lugares de intervención" if module==F01_MODULE else "03 · Socios"))
+    if is_facility_capacity_view:
+        section_links.append(("apoyos-establecimientos-f01", "04 · Apoyo a establecimientos de salud"))
     if module!=F02_FACILITY_MODULE:
-        section_links += '<a href="#inversion-f01">05 · Inversión</a>'
-    section_links += '<a href="#imprimir-infografia-del-tablero">Descargar infografía ↓</a></div>'
-    st.markdown(section_links,unsafe_allow_html=True)
+        section_links.append(("inversion-f01", "05 · Inversión"))
+    section_links.append(("imprimir-infografia-del-tablero", "Descargar infografía ↓"))
+    render_sidebar_index(section_links)
     professional_total=pd.to_numeric(staffing[all_staff_cols].stack(),errors="coerce").sum()
     if module==F01_MODULE:
         parish_count=active_places.loc[active_places.parroquia.ne("No reportada"),"parroquia"].nunique()
@@ -1491,7 +1536,8 @@ if module in F01_MODULE_OPTIONS:
     selected_coverage=coverage
     if module==F01_MODULE:
         render_calendar(section_figures)
-    st.markdown('<div id="territorio-f01" class="section-kicker">02 · Alcance territorial</div>',unsafe_allow_html=True)
+    territory_number="03" if module==F01_MODULE else "02"
+    st.markdown(f'<div id="territorio-f01" class="section-kicker">{territory_number} · Alcance territorial</div>',unsafe_allow_html=True)
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
@@ -1506,6 +1552,8 @@ if module in F01_MODULE_OPTIONS:
             focus_points=territorial[territorial.foco.eq(focus_name)].copy()
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
+            if not is_facility:
+                st.markdown("<h2>Mapa de cobertura de socios</h2>",unsafe_allow_html=True)
             if not is_facility and not st.session_state.get("public_state_legend_default_applied"):
                 st.session_state["territory_public_level_f01"]="Estado"
                 st.session_state["public_state_legend_default_applied"]=True
@@ -1517,8 +1565,8 @@ if module in F01_MODULE_OPTIONS:
                 index=0,key=f"territory_{focus_key}_level_f01",
             ))
             territory_level="Municipio" if map_level=="Parroquia" else map_level
-            partner_col,action_col=st.columns(2)
-            with partner_col:
+            partner_choice="Todos"
+            if is_facility:
                 partner_choice=st.selectbox(
                     "Socio",["Todos"]+sorted(focus_points.organizacion.dropna().unique().tolist()),
                     key=f"territory_{focus_key}_partner_f01",
@@ -1535,7 +1583,8 @@ if module in F01_MODULE_OPTIONS:
             focus_points=focus_points.drop_duplicates(["territorio","tipo_accion","id_punto","organizacion"])
             subset=focus_points
             all_label="Todos los servicios" if is_facility else "Todas las acciones"
-            with action_col:
+            choice=all_label
+            if is_facility:
                 choice=st.selectbox(
                     "Explorar servicios ofertados" if is_facility else "Explorar acciones de salud pública",
                     [all_label]+sorted(subset.tipo_accion.dropna().unique()),
@@ -1607,7 +1656,7 @@ if module in F01_MODULE_OPTIONS:
                                     leaflet_partner_map(
                                         parish_geo,parish_areas,"Parroquia",
                                         background_geo=load_estado_geojson(),
-                                        zoom_to_data=choice!=all_label,
+                                        zoom_to_data=False,original_palette=True,
                                     )
                                     st.caption("Parroquias declaradas en F01, representadas con límites administrativos reales (Venezuela360). El formulario no aporta coordenadas individuales de los puntos.")
                     selected_ids=set(subset.id_punto)
@@ -1681,7 +1730,8 @@ if module in F01_MODULE_OPTIONS:
                             socios=("organizacion","nunique"),puntos=("id_punto","nunique"))
                         partner_map=geo_rows.merge(partner_counts,on="join_key",how="left")
                         partner_map[["socios","puntos"]]=partner_map[["socios","puntos"]].fillna(0).astype(int)
-                        leaflet_partner_map(geo,partner_map,territory_level,zoom_to_data=choice!=all_label)
+                        leaflet_partner_map(geo,partner_map,territory_level,
+                                            zoom_to_data=False,original_palette=True)
                         st.caption("Mapa de cobertura de socios con el mismo formato del tablero original; los territorios sin registros permanecen en gris.")
             if not is_facility:
                 # Explorador F01: cada tarjeta y figura se recalcula desde los puntos
@@ -1753,68 +1803,39 @@ if module in F01_MODULE_OPTIONS:
                 ]
                 st.markdown('<div class="metric-row" style="grid-template-columns:repeat(6,1fr)">'+''.join(metric(*row) for row in service_cards)+'</div>',unsafe_allow_html=True)
                 st.caption("Los profesionales corresponden al personal total de los puntos que ofrecen el servicio; F01 no permite atribuirlos exclusivamente a ese servicio. Los archivos históricos no registran inversión por servicio, por lo que no se estima un monto.")
-                st.markdown("#### Cobertura territorial del servicio")
-                service_map_level=st.radio(
-                    "Nivel del análisis territorial",
-                    ["Estado","Municipio","Parroquia"],horizontal=True,
-                    key="public_f01_service_map_level",
+                st.markdown("#### Socios por estado y municipio")
+                state_col,municipality_col=st.columns(2)
+                state_options=["Todos los estados",*sorted(service_places.estado.dropna().unique())]
+                selected_state=state_col.selectbox("Estado",state_options,key="public_f01_service_state")
+                state_service_places=(service_places if selected_state=="Todos los estados" else
+                                      service_places[service_places.estado.eq(selected_state)])
+                municipality_options=["Todos los municipios",*sorted(state_service_places.municipio.dropna().unique())]
+                selected_municipality=municipality_col.selectbox(
+                    "Municipio",municipality_options,key="public_f01_service_municipality",
                 )
-                if service_places.empty:
-                    st.info("No hay puntos para el servicio seleccionado.")
-                elif service_map_level=="Parroquia":
-                    parish_places=service_places.dropna(subset=["parroquia"]).copy()
-                    parish_places=parish_places[
-                        parish_places.parroquia.astype(str).str.strip().ne("") &
-                        parish_places.parroquia.ne("No reportada")
-                    ]
-                    if parish_places.empty:
-                        st.info("Los puntos seleccionados no tienen parroquia declarada.")
-                    else:
-                        parish_places["join_key"]=parish_places.apply(
-                            lambda row:" | ".join(normalize_name(part) for part in
-                                (row.estado,row.municipio,row.parroquia)),axis=1,
-                        )
-                        try:
-                            service_geo=load_parroquia_geojson(tuple(sorted(parish_places.join_key.unique())))
-                        except (OSError,ValueError) as exc:
-                            st.warning(f"No se pudieron cargar los límites parroquiales: {exc}")
-                        else:
-                            service_geo_rows=pd.DataFrame([
-                                {"join_key":feature["properties"]["join_key"],
-                                 "nombre":feature["properties"].get("parroquia","Parroquia")}
-                                for feature in service_geo["features"]
-                            ])
-                            if service_geo_rows.empty:
-                                st.info("No se encontraron límites para las parroquias declaradas.")
-                            else:
-                                service_counts_geo=parish_places.groupby("join_key",as_index=False).agg(
-                                    socios=("organizacion","nunique"),puntos=("id_servicio","nunique"),
-                                )
-                                service_map=service_geo_rows.merge(service_counts_geo,on="join_key",how="left")
-                                service_map[["socios","puntos"]]=service_map[["socios","puntos"]].fillna(0).astype(int)
-                                leaflet_partner_map(
-                                    service_geo,service_map,"Parroquia",
-                                    background_geo=load_estado_geojson(),zoom_to_data=service_selected,
-                                )
+                territorial_service_places=(state_service_places if selected_municipality=="Todos los municipios" else
+                                            state_service_places[state_service_places.municipio.eq(selected_municipality)])
+                if territorial_service_places.empty:
+                    st.info("No hay socios para esta selección.")
                 else:
-                    service_geo=load_estado_geojson() if service_map_level=="Estado" else load_municipio_geojson()
-                    service_keyed=service_places.assign(
-                        join_key=service_places.estado if service_map_level=="Estado"
-                        else service_places.estado+" | "+service_places.municipio,
-                    )
-                    service_counts_geo=service_keyed.groupby("join_key",as_index=False).agg(
-                        socios=("organizacion","nunique"),puntos=("id_servicio","nunique"),
-                    )
-                    service_geo_rows=pd.DataFrame([
-                        {"join_key":feature["properties"]["join_key"],
-                         "nombre":feature["properties"]["adm1_name"] if service_map_level=="Estado"
-                         else feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
-                        for feature in service_geo["features"]
-                    ])
-                    service_map=service_geo_rows.merge(service_counts_geo,on="join_key",how="left")
-                    service_map[["socios","puntos"]]=service_map[["socios","puntos"]].fillna(0).astype(int)
-                    leaflet_partner_map(service_geo,service_map,service_map_level,zoom_to_data=service_selected)
-                st.caption("El mapa muestra los puntos del servicio seleccionado por territorio. El archivo histórico no aporta coordenadas individuales para estos puntos.")
+                    territory_counts=(territorial_service_places.groupby(["estado","municipio"],as_index=False)
+                                      .agg(socios=("organizacion","nunique"),
+                                           organizaciones=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+                    territory_counts["territorio"]=territory_counts.municipio+" · "+territory_counts.estado
+                    territory_counts=territory_counts.sort_values(["socios","territorio"],ascending=[True,True])
+                    st.markdown('<div class="metric-row" style="grid-template-columns:repeat(2,1fr)">'+
+                                metric("Socios",num(territorial_service_places.organizacion.nunique()),"en la selección")+
+                                metric("Municipios",num(len(territory_counts)),"con presencia")+'</div>',
+                                unsafe_allow_html=True)
+                    territory_fig=px.bar(territory_counts,x="socios",y="territorio",orientation="h",
+                                         text="socios",custom_data=["organizaciones"],
+                                         color_discrete_sequence=["#4e70a8"])
+                    territory_fig.update_traces(hovertemplate="<b>%{y}</b><br>Socios: %{x}<br>%{customdata[0]}<extra></extra>")
+                    territory_fig.update_layout(xaxis_title="Cantidad de socios",yaxis_title=None,
+                                                showlegend=False)
+                    plot(territory_fig,max(240,48*len(territory_counts)+95),
+                         "public_f01_service_territory_partners",margin=dict(l=8,r=28,t=8,b=42))
+                    st.caption("Cada socio se cuenta una vez por municipio; el total de la tarjeta cuenta socios únicos en la selección.")
                 st.markdown("#### Socios presentes por territorio")
                 for service_state, state_places in service_places.groupby("estado",sort=True):
                     state_orgs=state_places.organizacion.nunique()
@@ -1970,7 +1991,7 @@ if module in F01_MODULE_OPTIONS:
             st.caption("Cada barra muestra el porcentaje de puntos que ofrece el servicio o acción. El mapa de establecimientos muestra los puntos por territorio o sus ubicaciones georreferenciadas cuando están disponibles.")
 
     if module==F01_MODULE:
-        st.markdown('<div id="socios-f01" class="section-kicker">03 · Socios y lugares de intervención</div>',unsafe_allow_html=True)
+        st.markdown('<div id="socios-f01" class="section-kicker">04 · Socios y lugares de intervención</div>',unsafe_allow_html=True)
 
     socios_source=active_places if module==F01_MODULE else p
     socios_point_col="id_servicio" if module==F01_MODULE else "id_punto"
@@ -2220,7 +2241,7 @@ if module in F01_MODULE_OPTIONS:
     report_staff.index=report_staff.index.str.replace("personal_","",regex=False).str.replace("_"," ").str.title()
     top_donors=donor.groupby("donantes").id_servicio.nunique().nlargest(12).sort_values()
     report_bytes=build_report(
-        title="Tablero de la Respuesta en Salud del terremoto en Venezuela",
+        title="Tablero de la Respuesta en Salud",
         subtitle="Socios y apoyos del Clúster Salud — Mapeo de socios, servicios y apoyos",
         scope_text="Universo vigente según los filtros activos. La inversión indicada es simulada y no representa montos declarados." if module==F01_MODULE else "Universo vigente según los filtros de estado, municipio, organización, foco y rango de fecha activos.",
         as_of_text=f"Generado el {pd.Timestamp.today().strftime('%d/%m/%Y')}",
@@ -2283,38 +2304,72 @@ if module in F02_MODULE_OPTIONS:
     is_actions_view=module==F02_ACTIONS_MODULE
     section_band("REPORTE DE ACCIONES" if is_actions_view else "ACCIONES IMPLEMENTADAS · F02", "¿Qué acciones de salud pública reportan los socios, dónde se realizan y qué resultados registran?" if is_actions_view else "Actividades efectivamente realizadas y reportadas por fecha; distintas de la capacidad declarada en F01.")
     if is_actions_view:
-        st.markdown("### Explorar servicios reportados")
-        reported_services=sorted(res.loc[res.foco.eq("Salud pública"),"area"].dropna().unique())
-        selected_reported_service=st.selectbox(
-            "Seleccionar un servicio reportado",["Todos los servicios",*reported_services],
-            key="f02_reported_service",
+        action_tabs={
+            "General":None,
+            "Salud mental y apoyo psicosocial":"Salud mental y apoyo psicosocial",
+            "Enfermedades no transmisibles":"Enfermedades no transmisibles",
+            "Transmisibles, VIH e ITS":"Enfermedades transmisibles, VIH e ITS",
+            "Salud materna y perinatal":"Salud materna y perinatal",
+            "Salud sexual y reproductiva":"Salud sexual y reproductiva",
+            "Violencia sexual":"Violencia sexual",
+            "Salud nutricional":"Salud nutricional",
+            "Vacunación":"Inmunización",
+            "Lesiones y traumas":"Lesiones y traumas",
+            "Personas con discapacidad":"Discapacidad",
+            "Institucional":"Acciones institucionales",
+        }
+        available_areas=set(res.area.dropna())
+        for area in sorted(available_areas-set(action_tabs.values())):
+            action_tabs[area]=area
+        selected_action_tab=st.radio(
+            "Pestaña de acción", list(action_tabs), horizontal=True,
+            key="f02_action_tabs",
         )
-        if selected_reported_service!="Todos los servicios":
+        selected_reported_service=action_tabs[selected_action_tab]
+        if selected_reported_service is not None:
             selected_result_ids=set(res.loc[
                 res.foco.eq("Salud pública") & res.area.eq(selected_reported_service),"id_reporte"
             ])
             r=r[r.id_reporte.isin(selected_result_ids)].copy()
-            res=res[res.id_reporte.isin(selected_result_ids)].copy()
+            res=res[res.id_reporte.isin(selected_result_ids) & res.area.eq(selected_reported_service)].copy()
             active=r.sort_values("fecha_reporte").drop_duplicates(["organizacion","nombre_sitio"],keep="last")
     if is_actions_view:
-        section_index='<a href="#mapa-f02">01 · Mapa</a><a href="#focos-f02">02 · Resumen de los reportes</a><a href="#reportes-acciones-f02">03 · Reportes de acciones de salud pública</a><a href="#reportantes-f02">04 · Socios que reportaron</a>'
+        section_index=[("panorama-f02","Panorama general"),("mapa-f02","01 · Mapa"),("focos-f02","02 · Resumen de los reportes"),("reportes-acciones-f02","03 · Reportes de acciones de salud pública"),("reportantes-f02","04 · Socios que reportaron")]
     else:
-        section_index='<a href="#mapa-establecimientos-f02">Mapa de reportes</a><a href="#resultados-f02">01 · Acciones registradas</a><a href="#focos-f02">02 · Resumen de reportes</a><a href="#reportes-establecimientos-f02">03 · Resultados reportados</a><a href="#reportantes-f02">04 · Socios que reportaron</a>'
-    st.markdown('<div class="index-label">Ir a la sección</div><div class="index">'+section_index+'<a href="#imprimir-infografia-del-tablero">Descargar infografía ↓</a></div>',unsafe_allow_html=True)
-    # Suma solo indicadores en unidad "personas" de salud pública (no mezcla
-    # con casos/procedimientos/kits); igual que el resto del tablero, es una
-    # suma de indicadores y no representa personas únicas.
-    people_reached=res.loc[res.foco.eq("Salud pública") & res.unidad.str.lower().eq("personas"),"total"].sum()
-    cards=[
-        ("Reportes periódicos",num(r.id_reporte.nunique()),""),
-        ("Estados",num(r.estado.nunique()),""),
-        ("Municipios",num(r.municipio.nunique()),""),
-        ("Parroquias",num(r.loc[r.parroquia.ne("No reportada"),"parroquia"].nunique()),""),
-    ]
+        section_index=[("mapa-establecimientos-f02","Mapa de reportes"),("resultados-f02","01 · Acciones registradas"),("focos-f02","02 · Resumen de reportes"),("reportes-establecimientos-f02","03 · Resultados reportados"),("reportantes-f02","04 · Socios que reportaron")]
+    render_sidebar_index(section_index+[("imprimir-infografia-del-tablero","Descargar infografía ↓")])
+    # Los indicadores de personas son sumas F02, no individuos únicos.
+    person_results=res.loc[res.foco.eq("Salud pública") & res.unidad.astype(str).str.casefold().eq("personas")]
+    people_reached=pd.to_numeric(person_results.total,errors="coerce").sum()
     if is_actions_view:
-        cards.append(("Personas atendidas en salud pública",num(people_reached),"suma de indicadores, no personas únicas"))
-    st.markdown('<h3>Panorama general de reportes periódicos</h3>',unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-row" style="grid-template-columns:repeat({len(cards)},1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
+        cards=[
+            ("Reportes",num(r.id_reporte.nunique()),"formularios únicos F02"),
+            ("Organizaciones",num(r.organizacion.nunique()),"socios que reportaron"),
+            ("Estados",num(r.estado.nunique()),"con actividad"),
+            ("Sitios",num(r[["organizacion","nombre_sitio"]].drop_duplicates().shape[0]),"lugares de intervención"),
+            ("Acciones activas",num(res.area.nunique()),"áreas con resultados"),
+        ]
+        st.markdown('<div id="panorama-f02"></div><h3>Panorama general de la respuesta reportada</h3>',unsafe_allow_html=True)
+        st.markdown('<div class="report-overview">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
+        demographic_cards=[
+            ("Personas reportadas",num(people_reached),"suma de indicadores"),
+            ("Mujeres",num(pd.to_numeric(person_results.mujeres,errors="coerce").sum()),"suma operativa"),
+            ("Hombres",num(pd.to_numeric(person_results.hombres,errors="coerce").sum()),"suma operativa"),
+            ("Niñas",num(pd.to_numeric(person_results.ninas,errors="coerce").sum()),"menores de 18 años"),
+            ("Niños",num(pd.to_numeric(person_results.ninos,errors="coerce").sum()),"menores de 18 años"),
+            ("Personas con discapacidad",num(pd.to_numeric(person_results.discapacidad,errors="coerce").sum()),"subconjunto transversal"),
+        ]
+        st.markdown('<div class="report-overview report-people">'+''.join(metric(*x) for x in demographic_cards)+'</div>',unsafe_allow_html=True)
+        st.caption("Las cifras son sumas de indicadores y no representan personas únicas. La discapacidad es un subconjunto transversal y no debe añadirse a los demás totales. Las pestañas filtran los reportes vinculados a cada área; un formulario puede aparecer en más de una.")
+    else:
+        cards=[
+            ("Reportes periódicos",num(r.id_reporte.nunique()),""),
+            ("Estados",num(r.estado.nunique()),""),
+            ("Municipios",num(r.municipio.nunique()),""),
+            ("Parroquias",num(r.loc[r.parroquia.ne("No reportada"),"parroquia"].nunique()),""),
+        ]
+        st.markdown('<h3>Panorama general de reportes periódicos</h3>',unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-row" style="grid-template-columns:repeat({len(cards)},1fr)">'+''.join(metric(*x) for x in cards)+'</div>',unsafe_allow_html=True)
     if not is_actions_view:
         st.markdown('<div id="mapa-establecimientos-f02" class="section-kicker">Reportes F02 · Ubicación</div><h2>Establecimientos con y sin reporte periódico</h2>',unsafe_allow_html=True)
         # F01 define exclusivamente el universo de establecimientos; el
@@ -2385,32 +2440,63 @@ if module in F02_MODULE_OPTIONS:
                                          hide_index=True, use_container_width=True)
         st.caption(f"Base de la simulación: {r.id_reporte.nunique()} reportes F02 dentro de los filtros activos. Un reporte puede seleccionar varias áreas y varias modalidades; por eso las categorías no suman el número de reportes.")
     if is_actions_view:
-        st.markdown('<div id="mapa-f02" class="section-kicker">01 · Alcance territorial de los reportes</div><h2>Mapa de reportes periódicos</h2>',unsafe_allow_html=True)
-        map_level=st.radio("Nivel del análisis territorial",["Estado","Municipio","Parroquia"],index=0,horizontal=True,key="f02_territory_level")
+        st.markdown('<div id="mapa-f02" class="section-kicker">01 · Alcance territorial de los reportes</div><h2>Distribución territorial y georreferenciación</h2>',unsafe_allow_html=True)
+        map_controls=st.columns(2)
+        with map_controls[0]:
+            map_view=st.radio("Vista del mapa",["Cobertura","Georreferenciación"],horizontal=True,key="f02_map_view")
+        with map_controls[1]:
+            map_level=st.radio("Nivel del análisis territorial",["Estado","Municipio","Parroquia"],index=1,horizontal=True,key="f02_territory_level")
         point_reports=r.groupby(["organizacion","nombre_sitio"]).id_reporte.nunique().reset_index(name="reportes_punto")
         mapped=active.dropna(subset=["latitud","longitud"]).merge(point_reports,on=["organizacion","nombre_sitio"],how="left")
         mapped=mapped[mapped.latitud.between(-2,14)&mapped.longitud.between(-76,-58)].copy()
         mapped["lugar"]=mapped.nombre_sitio
-        if map_level=="Estado":
-            geo=load_estado_geojson()
-            counts=r.groupby("estado",as_index=False).agg(reportes=("id_reporte","nunique"),socios=("organizacion","nunique"),puntos=("nombre_sitio","nunique")).rename(columns={"estado":"join_key"})
-            areas=pd.DataFrame([{"join_key":feature["properties"]["join_key"],"nombre":feature["properties"]["adm1_name"]} for feature in geo["features"]])
+        state_geo=load_estado_geojson()
+        if map_view=="Georreferenciación":
+            if mapped.empty:
+                st.info("Los sitios F02 de esta selección no tienen coordenadas válidas para georreferenciación.")
+            else:
+                blank_areas=pd.DataFrame([{"join_key":feature["properties"]["join_key"],
+                                           "nombre":feature["properties"]["adm1_name"],
+                                           "socios":0,"puntos":0} for feature in state_geo["features"]])
+                leaflet_partner_map(state_geo,blank_areas,"Estado",markers=mapped,
+                                    outline_geo=state_geo,metric="puntos",metric_label="Sitios con reporte",
+                                    zoom_to_data=True,marker_only=True)
+            st.caption(f"{len(mapped)} sitios con coordenadas F02 visibles. Los reportes sin coordenadas siguen incluidos en los indicadores, pero no se colocan como puntos.")
         else:
-            geo=load_municipio_geojson()
-            counts=(r.assign(join_key=r.estado+" | "+r.municipio).groupby("join_key",as_index=False)
-                    .agg(reportes=("id_reporte","nunique"),socios=("organizacion","nunique"),puntos=("nombre_sitio","nunique")))
-            areas=pd.DataFrame([{"join_key":feature["properties"]["join_key"],
-                                 "nombre":feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
-                                for feature in geo["features"]])
-        areas=areas.merge(counts,on="join_key",how="left")
-        areas[["reportes","socios","puntos"]]=areas[["reportes","socios","puntos"]].fillna(0).astype(int)
-        with st.container(border=True):
-            leaflet_partner_map(geo,areas,map_level,mapped if map_level=="Parroquia" else None,
-                                metric="reportes",metric_label="Reportes F02")
-        if map_level=="Parroquia":
-            st.caption(f"Se muestran {len(mapped)} puntos con coordenadas declaradas en F02 sobre los municipios de referencia. Los reportes sin coordenadas no se colocan como puntos; siguen incluidos en los totales territoriales.")
-        else:
-            st.caption("Mismo formato territorial que F01: el azul muestra la cantidad de reportes F02 y las zonas sin reportes quedan en gris. La rueda del ratón y los botones +/− permiten ampliar el mapa.")
+            if map_level=="Estado":
+                geo=state_geo
+                scoped=r.assign(join_key=r.estado)
+                areas=pd.DataFrame([{"join_key":feature["properties"]["join_key"],
+                                     "nombre":feature["properties"]["adm1_name"]} for feature in geo["features"]])
+            elif map_level=="Municipio":
+                geo=load_municipio_geojson()
+                scoped=r.assign(join_key=r.estado+" | "+r.municipio)
+                areas=pd.DataFrame([{"join_key":feature["properties"]["join_key"],
+                                     "nombre":feature["properties"]["adm2_name"]+" ("+feature["properties"]["adm1_name"]+")"}
+                                    for feature in geo["features"]])
+            else:
+                parish_rows=r.loc[r.parroquia.ne("No reportada")].copy()
+                parish_rows["join_key"]=parish_rows.apply(
+                    lambda row:" | ".join(normalize_name(part) for part in
+                        (row.estado,row.municipio,row.parroquia)),axis=1)
+                geo=load_parroquia_geojson(tuple(sorted(parish_rows.join_key.unique())))
+                scoped=parish_rows
+                areas=pd.DataFrame([{"join_key":feature["properties"]["join_key"],
+                                     "nombre":feature["properties"].get("parroquia","Parroquia")}
+                                    for feature in geo["features"]])
+            if areas.empty:
+                st.info("No hay límites territoriales disponibles para las parroquias declaradas en estos reportes.")
+            else:
+                counts=scoped.groupby("join_key",as_index=False).agg(
+                    reportes=("id_reporte","nunique"),socios=("organizacion","nunique"),
+                    puntos=("nombre_sitio","nunique"))
+                areas=areas.merge(counts,on="join_key",how="left")
+                areas[["reportes","socios","puntos"]]=areas[["reportes","socios","puntos"]].fillna(0).astype(int)
+                leaflet_partner_map(geo,areas,map_level,
+                                    background_geo=state_geo if map_level=="Parroquia" else None,
+                                    outline_geo=state_geo,metric="socios",metric_label="Organizaciones",
+                                    zoom_to_data=True)
+            st.caption("Cobertura de organizaciones con reportes F02: azul más oscuro indica más socios que reportaron en el territorio; las zonas sin reportes quedan en gris. Use Georreferenciación para ver los sitios con coordenadas.")
     st.markdown(f'<div id="focos-f02" class="section-rule"></div><div class="section-kicker">02 · Resumen de los reportes</div><h2>Reportes y puntos activos por foco de intervención</h2>',unsafe_allow_html=True)
     r_foco=r.assign(foco_formulario=r.foco.map({"Establecimiento de salud":"Acciones en el establecimiento de salud","Salud pública":"Acciones de salud pública"}))
     active_foco=active.assign(foco_formulario=active.foco.map({"Establecimiento de salud":"Acciones en el establecimiento de salud","Salud pública":"Acciones de salud pública"}))
@@ -2754,7 +2840,7 @@ if module in F02_MODULE_OPTIONS:
     population_totals=res[["mujeres","hombres","ninas","ninos"]].sum().rename({"mujeres":"Mujeres","hombres":"Hombres","ninas":"Niñas","ninos":"Niños"})
     disability_by_area=res.groupby("area").discapacidad.sum().nlargest(12).sort_values()
     report_bytes=build_report(
-        title="Tablero de la Respuesta en Salud del terremoto en Venezuela",
+        title="Tablero de la Respuesta en Salud",
         subtitle=f"{module} (F02)",
         scope_text="Universo de reportes vigente según los filtros de estado, municipio, organización, foco y rango de fecha activos.",
         as_of_text=f"Generado el {pd.Timestamp.today().strftime('%d/%m/%Y')}",
@@ -2803,3 +2889,40 @@ if module in F02_MODULE_OPTIONS:
         palette=report_palette,
     )
     complete_dashboard_export()
+
+# El índice vive en la barra lateral; esta pequeña observación solo cambia
+# el resaltado visual cuando el usuario recorre las secciones de la página.
+components.html("""
+<script>
+(() => {
+  try {
+    const doc = window.parent.document;
+    const links = [...doc.querySelectorAll('.sidebar-index a[data-section]')];
+    if (!links.length) return;
+    const sections = links.map(link => ({link, node: doc.getElementById(link.dataset.section)}))
+                          .filter(item => item.node);
+    if (!sections.length) return;
+    let pending = false;
+    const update = () => {
+      pending = false;
+      let current = sections[0];
+      for (const section of sections) {
+        if (section.node.getBoundingClientRect().top <= 145) current = section;
+      }
+      for (const section of sections) {
+        const active = section === current;
+        section.link.classList.toggle('active', active);
+        if (active) section.link.setAttribute('aria-current', 'location');
+        else section.link.removeAttribute('aria-current');
+      }
+    };
+    const schedule = () => {
+      if (!pending) { pending = true; window.parent.requestAnimationFrame(update); }
+    };
+    doc.addEventListener('scroll', schedule, true);
+    window.parent.addEventListener('resize', schedule);
+    update();
+  } catch (error) { /* El tablero sigue siendo navegable si el navegador aísla el componente. */ }
+})();
+</script>
+""", height=0)
