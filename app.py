@@ -1541,7 +1541,7 @@ if module in F01_MODULE_OPTIONS:
     if selected_coverage.empty:
         st.info("No hay tipos de acción registrados para los filtros seleccionados.")
     else:
-        st.caption("Distribución de los registros del foco seleccionado. Compare la oferta por estado, municipio o parroquia." if module==F01_MODULE else "Distribución de los registros del foco seleccionado. Consulte los totales por estado o municipio, o seleccione Parroquia para ver los puntos georreferenciados.")
+        st.caption("Cantidad de socios con capacidad registrada por estado y municipio." if module==F01_MODULE else "Distribución de los registros del foco seleccionado. Consulte los totales por estado o municipio, o seleccione Parroquia para ver los puntos georreferenciados.")
         territorial=selected_coverage.copy()
         territorial_foci = (
             [("Salud pública","Áreas temáticas en las que la organización realiza acciones de salud pública")]
@@ -1553,17 +1553,10 @@ if module in F01_MODULE_OPTIONS:
             is_facility=focus_name=="Establecimiento de salud"
             focus_key="facility" if is_facility else "public"
             if not is_facility:
-                st.markdown("<h2>Mapa de cobertura de socios</h2>",unsafe_allow_html=True)
-            if not is_facility and not st.session_state.get("public_state_legend_default_applied"):
-                st.session_state["territory_public_level_f01"]="Estado"
-                st.session_state["public_state_legend_default_applied"]=True
+                st.markdown("<h2>Socios por estado y municipio</h2>",unsafe_allow_html=True)
             if is_facility:
                 st.markdown("### Establecimientos con y sin reporte periódico" if module==F02_FACILITY_MODULE else "### Puntos de apoyo registrados")
-            map_level=("Estado" if is_facility else st.radio(
-                "Nivel del análisis territorial",
-                ["Estado","Municipio","Parroquia"],horizontal=True,
-                index=0,key=f"territory_{focus_key}_level_f01",
-            ))
+            map_level="Estado" if is_facility else "Municipio"
             territory_level="Municipio" if map_level=="Parroquia" else map_level
             partner_choice="Todos"
             if is_facility:
@@ -1601,7 +1594,38 @@ if module in F01_MODULE_OPTIONS:
             # Estado/Municipio ni al seleccionar un único servicio o acción.
             base_total=focus_points.id_punto.nunique()
             with st.container(border=True) if is_facility else st.container():
-                if is_facility and module==F02_FACILITY_MODULE:
+                if not is_facility:
+                    state_filter,municipality_filter=st.columns(2)
+                    state_options=["Todos los estados",*sorted(subset.estado.dropna().unique())]
+                    chosen_state=state_filter.selectbox("Estado",state_options,key="public_f01_territory_state")
+                    visible=subset if chosen_state=="Todos los estados" else subset[subset.estado.eq(chosen_state)]
+                    municipality_options=["Todos los municipios",*sorted(visible.municipio.dropna().unique())]
+                    chosen_municipality=municipality_filter.selectbox(
+                        "Municipio",municipality_options,key="public_f01_territory_municipality")
+                    if chosen_municipality!="Todos los municipios":
+                        visible=visible[visible.municipio.eq(chosen_municipality)]
+                    if visible.empty:
+                        st.info("No hay socios para esta selección.")
+                    else:
+                        counts=(visible.groupby(["estado","municipio"],as_index=False)
+                                .agg(socios=("organizacion","nunique"),
+                                     organizaciones=("organizacion",lambda names:", ".join(sorted(set(names.dropna()))))))
+                        counts["territorio"]=counts.municipio+" · "+counts.estado
+                        counts=counts.sort_values(["socios","territorio"],ascending=[True,True])
+                        partner_fig=go.Figure(go.Scatter(
+                            x=counts.socios,y=counts.territorio,mode="markers+text",
+                            text=counts.socios.astype(str),textposition="middle right",
+                            customdata=counts[["organizaciones"]],
+                            marker=dict(size=18,color="#4e70a8",line=dict(color="white",width=2)),
+                            hovertemplate="<b>%{y}</b><br>%{x} socios<br>%{customdata[0]}<extra></extra>",
+                        ))
+                        partner_fig.update_layout(showlegend=False,xaxis_title="Cantidad de socios",yaxis_title=None)
+                        partner_fig.update_xaxes(rangemode="tozero",dtick=1,gridcolor="#e6edf4")
+                        plot(partner_fig,max(260,38*len(counts)+100),"public_f01_territory_partners",
+                             margin=dict(l=8,r=45,t=15,b=45))
+                        section_figures.setdefault("Alcance territorial",[]).append(partner_fig)
+                        st.caption("Cada socio se cuenta una vez por municipio; los filtros muestran solo los territorios seleccionados.")
+                elif is_facility and module==F02_FACILITY_MODULE:
                     report_rows=filt(reports,True)
                     facility_pool=filt(points,True)
                     facility_pool=facility_pool[facility_pool.foco.eq("Establecimiento de salud")].copy().drop_duplicates("id_punto")
